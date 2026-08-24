@@ -1,0 +1,634 @@
+{
+  "counts": {
+    "posts": 1893,
+    "postmeta": 15769,
+    "users": 1043,
+    "comments": 3635,
+    "wcOrders": 1302,
+    "orderItems": 9681,
+    "productLookup": 182,
+    "paytm": 1257,
+    "couponLookup": 0,
+    "paymentTokens": 0,
+    "apiKeys": 0,
+    "thumbnailCount": 150,
+    "galleryCount": 2,
+    "attachedFileCount": 32,
+    "addressRows": 2608
+  },
+  "postTypes": {
+    "wp_navigation": 1,
+    "wpcf7_contact_form": 1,
+    "elementor_library": 27,
+    "page": 17,
+    "nav_menu_item": 31,
+    "product_variation": 207,
+    "attachment": 32,
+    "wp_global_styles": 2,
+    "revision": 216,
+    "product": 12,
+    "custom_css": 1,
+    "shop_order_placehold": 1302
+  },
+  "orderStatuses": {
+    "wc-processing": 1180,
+    "wc-cancelled": 118,
+    "wc-failed": 4
+  },
+  "orderTypes": {
+    "shop_order": 1302
+  },
+  "paymentMethods": {
+    "paytm": 1302
+  },
+  "itemTypes": {
+    "line_item": 5775,
+    "shipping": 1302,
+    "tax": 2604
+  },
+  "taxonomies": {
+    "category": 1,
+    "product_type": 5,
+    "product_visibility": 9,
+    "product_cat": 2,
+    "nav_menu": 6,
+    "elementor_library_type": 4,
+    "pa_size": 24,
+    "wp_theme": 1
+  },
+  "capabilityRoles": {
+    "administrator": 1,
+    "customer": 1042
+  },
+  "wcOrdersMetaKeys": {
+    "is_vat_exempt": 1302,
+    "_billing_address_index": 1302,
+    "_shipping_address_index": 1302,
+    "_wc_order_attribution_*": 12248,
+    "_wcpdf_*": 8274,
+    "_wcpdf_invoice_date": 1182,
+    "_wcpdf_invoice_number": 1182
+  },
+  "interestingPostMeta": [
+    "_backorders",
+    "_downloadable",
+    "_elementor_data",
+    "_height",
+    "_length",
+    "_manage_stock",
+    "_price",
+    "_product_attributes",
+    "_product_image_gallery",
+    "_regular_price",
+    "_sale_price",
+    "_sale_price_dates_to",
+    "_sku",
+    "_sold_individually",
+    "_stock",
+    "_stock_status",
+    "_tax_class",
+    "_tax_status",
+    "_thumbnail_id",
+    "_variation_description",
+    "_virtual",
+    "_weight",
+    "_width",
+    "_wp_attached_file",
+    "_wp_attachment_metadata",
+    "attribute_pa_size",
+    "total_sales"
+  ],
+  "stockStatuses": {
+    "instock": 200,
+    "outofstock": 19
+  },
+  "autoIncCols": {
+    "wpwd_actionscheduler_actions": [
+      "action_id"
+    ],
+    "wpwd_actionscheduler_claims": [
+      "claim_id"
+    ],
+    "wpwd_actionscheduler_groups": [
+      "group_id"
+    ],
+    "wpwd_actionscheduler_logs": [
+      "log_id"
+    ],
+    "wpwd_commentmeta": [
+      "meta_id"
+    ],
+    "wpwd_comments": [
+      "comment_ID"
+    ],
+    "wpwd_e_events": [
+      "id"
+    ],
+    "wpwd_e_submissions": [
+      "id"
+    ],
+    "wpwd_e_submissions_actions_log": [
+      "id"
+    ],
+    "wpwd_e_submissions_values": [
+      "id"
+    ],
+    "wpwd_links": [
+      "link_id"
+    ],
+    "wpwd_nfd_data_event_queue": [
+      "id"
+    ],
+    "wpwd_options": [
+      "option_id"
+    ],
+    "wpwd_paytm_order_data": [
+      "id"
+    ],
+    "wpwd_postmeta": [
+      "meta_id"
+    ],
+    "wpwd_posts": [
+      "ID"
+    ],
+    "wpwd_revslider_css": [
+      "id"
+    ],
+    "wpwd_revslider_css_bkp": [
+      "id"
+    ],
+    "wpwd_revslider_layer_animations": [
+      "id"
+    ],
+    "wpwd_revslider_layer_animations_bkp": [
+      "id"
+    ],
+    "wpwd_revslider_navigations": [
+      "id"
+    ],
+    "wpwd_revslider_navigations_bkp": [
+      "id"
+    ],
+    "wpwd_revslider_sliders": [
+      "id"
+    ],
+    "wpwd_revslider_sliders_bkp": [
+      "id"
+    ],
+    "wpwd_revslider_slides": [
+      "id"
+    ],
+    "wpwd_revslider_slides_bkp": [
+      "id"
+    ],
+    "wpwd_revslider_static_slides": [
+      "id"
+    ],
+    "wpwd_revslider_static_slides_bkp": [
+      "id"
+    ],
+    "wpwd_termmeta": [
+      "meta_id"
+    ],
+    "wpwd_terms": [
+      "term_id"
+    ],
+    "wpwd_term_taxonomy": [
+      "term_taxonomy_id"
+    ],
+    "wpwd_usermeta": [
+      "umeta_id"
+    ],
+    "wpwd_users": [
+      "ID"
+    ],
+    "wpwd_wcpdf_invoice_number": [
+      "id"
+    ],
+    "wpwd_wcpdf_packing_slip_number": [
+      "id"
+    ],
+    "wpwd_wc_admin_notes": [
+      "note_id"
+    ],
+    "wpwd_wc_admin_note_actions": [
+      "action_id"
+    ],
+    "wpwd_wc_customer_lookup": [
+      "customer_id"
+    ],
+    "wpwd_wc_download_log": [
+      "download_log_id"
+    ],
+    "wpwd_wc_orders_meta": [
+      "id"
+    ],
+    "wpwd_wc_order_addresses": [
+      "id"
+    ],
+    "wpwd_wc_order_operational_data": [
+      "id"
+    ],
+    "wpwd_wc_product_download_directories": [
+      "url_id"
+    ],
+    "wpwd_wc_rate_limits": [
+      "rate_limit_id"
+    ],
+    "wpwd_wc_tax_rate_classes": [
+      "tax_rate_class_id"
+    ],
+    "wpwd_wc_webhooks": [
+      "webhook_id"
+    ],
+    "wpwd_woocommerce_api_keys": [
+      "key_id"
+    ],
+    "wpwd_woocommerce_attribute_taxonomies": [
+      "attribute_id"
+    ],
+    "wpwd_woocommerce_downloadable_product_permissions": [
+      "permission_id"
+    ],
+    "wpwd_woocommerce_log": [
+      "log_id"
+    ],
+    "wpwd_woocommerce_order_itemmeta": [
+      "meta_id"
+    ],
+    "wpwd_woocommerce_order_items": [
+      "order_item_id"
+    ],
+    "wpwd_woocommerce_payment_tokenmeta": [
+      "meta_id"
+    ],
+    "wpwd_woocommerce_payment_tokens": [
+      "token_id"
+    ],
+    "wpwd_woocommerce_sessions": [
+      "session_id"
+    ],
+    "wpwd_woocommerce_shipping_zones": [
+      "zone_id"
+    ],
+    "wpwd_woocommerce_shipping_zone_locations": [
+      "location_id"
+    ],
+    "wpwd_woocommerce_shipping_zone_methods": [
+      "instance_id"
+    ],
+    "wpwd_woocommerce_tax_rates": [
+      "tax_rate_id"
+    ],
+    "wpwd_woocommerce_tax_rate_locations": [
+      "location_id"
+    ],
+    "wpwd_wpforms_logs": [
+      "id"
+    ],
+    "wpwd_wpforms_payments": [
+      "id"
+    ],
+    "wpwd_wpforms_payment_meta": [
+      "id"
+    ],
+    "wpwd_wpforms_tasks_meta": [
+      "id"
+    ],
+    "wpwd_yith_wcwl": [
+      "ID"
+    ],
+    "wpwd_yith_wcwl_lists": [
+      "ID"
+    ]
+  },
+  "indexSample": {
+    "wpwd_postmeta": [
+      "ADD PRIMARY KEY (`meta_id`)",
+      "ADD KEY `post_id` (`post_id`)",
+      "ADD KEY `meta_key` (`meta_key`(191));"
+    ],
+    "wpwd_posts": [
+      "ADD PRIMARY KEY (`ID`)",
+      "ADD KEY `post_name` (`post_name`(191))",
+      "ADD KEY `type_status_date` (`post_type`,`post_status`,`post_date`,`ID`)",
+      "ADD KEY `post_parent` (`post_parent`)",
+      "ADD KEY `post_author` (`post_author`)",
+      "ADD KEY `type_status_author` (`post_type`,`post_status`,`post_author`);"
+    ],
+    "wpwd_terms": [
+      "ADD PRIMARY KEY (`term_id`)",
+      "ADD KEY `slug` (`slug`(191))",
+      "ADD KEY `name` (`name`(191));"
+    ],
+    "wpwd_term_relationships": [
+      "ADD PRIMARY KEY (`object_id`,`term_taxonomy_id`)",
+      "ADD KEY `term_taxonomy_id` (`term_taxonomy_id`);"
+    ],
+    "wpwd_term_taxonomy": [
+      "ADD PRIMARY KEY (`term_taxonomy_id`)",
+      "ADD UNIQUE KEY `term_id_taxonomy` (`term_id`,`taxonomy`)",
+      "ADD KEY `taxonomy` (`taxonomy`);"
+    ],
+    "wpwd_usermeta": [
+      "ADD PRIMARY KEY (`umeta_id`)",
+      "ADD KEY `user_id` (`user_id`)",
+      "ADD KEY `meta_key` (`meta_key`(191));"
+    ],
+    "wpwd_users": [
+      "ADD PRIMARY KEY (`ID`)",
+      "ADD KEY `user_login_key` (`user_login`)",
+      "ADD KEY `user_nicename` (`user_nicename`)",
+      "ADD KEY `user_email` (`user_email`);"
+    ],
+    "wpwd_wc_orders": [
+      "ADD PRIMARY KEY (`id`)",
+      "ADD KEY `status` (`status`)",
+      "ADD KEY `date_created` (`date_created_gmt`)",
+      "ADD KEY `customer_id_billing_email` (`customer_id`,`billing_email`(171))",
+      "ADD KEY `billing_email` (`billing_email`(191))",
+      "ADD KEY `type_status_date` (`type`,`status`,`date_created_gmt`)",
+      "ADD KEY `parent_order_id` (`parent_order_id`)",
+      "ADD KEY `date_updated` (`date_updated_gmt`)",
+      "ADD KEY `customer_id_status` (`customer_id`,`status`)",
+      "ADD KEY `transaction_id` (`transaction_id`(20));"
+    ],
+    "wpwd_wc_orders_meta": [
+      "ADD PRIMARY KEY (`id`)",
+      "ADD KEY `order_id_meta_key_meta_value` (`order_id`,`meta_key`(100),`meta_value`(82))",
+      "ADD KEY `meta_key_value` (`meta_key`(50),`meta_value`(20));"
+    ],
+    "wpwd_woocommerce_order_itemmeta": [
+      "ADD PRIMARY KEY (`meta_id`)",
+      "ADD KEY `order_item_id` (`order_item_id`)",
+      "ADD KEY `meta_key` (`meta_key`(32));"
+    ],
+    "wpwd_woocommerce_order_items": [
+      "ADD PRIMARY KEY (`order_item_id`)",
+      "ADD KEY `order_id` (`order_id`);"
+    ]
+  },
+  "termCount": 52,
+  "terms": [
+    {
+      "id": "1",
+      "name": "Uncategorized",
+      "slug": "uncategorized"
+    },
+    {
+      "id": "2",
+      "name": "simple",
+      "slug": "simple"
+    },
+    {
+      "id": "3",
+      "name": "grouped",
+      "slug": "grouped"
+    },
+    {
+      "id": "4",
+      "name": "variable",
+      "slug": "variable"
+    },
+    {
+      "id": "5",
+      "name": "external",
+      "slug": "external"
+    },
+    {
+      "id": "6",
+      "name": "exclude-from-search",
+      "slug": "exclude-from-search"
+    },
+    {
+      "id": "7",
+      "name": "exclude-from-catalog",
+      "slug": "exclude-from-catalog"
+    },
+    {
+      "id": "8",
+      "name": "featured",
+      "slug": "featured"
+    },
+    {
+      "id": "9",
+      "name": "outofstock",
+      "slug": "outofstock"
+    },
+    {
+      "id": "10",
+      "name": "rated-1",
+      "slug": "rated-1"
+    },
+    {
+      "id": "11",
+      "name": "rated-2",
+      "slug": "rated-2"
+    },
+    {
+      "id": "12",
+      "name": "rated-3",
+      "slug": "rated-3"
+    },
+    {
+      "id": "13",
+      "name": "rated-4",
+      "slug": "rated-4"
+    },
+    {
+      "id": "14",
+      "name": "rated-5",
+      "slug": "rated-5"
+    },
+    {
+      "id": "15",
+      "name": "Uncategorized",
+      "slug": "uncategorized"
+    },
+    {
+      "id": "35",
+      "name": "English",
+      "slug": "english"
+    },
+    {
+      "id": "36",
+      "name": "Main Menu",
+      "slug": "main-menu"
+    },
+    {
+      "id": "37",
+      "name": "Menu ldp",
+      "slug": "menu-ldp"
+    },
+    {
+      "id": "38",
+      "name": "Shop by Department",
+      "slug": "shop-by-department"
+    },
+    {
+      "id": "39",
+      "name": "USD",
+      "slug": "usd"
+    },
+    {
+      "id": "80",
+      "name": "footer",
+      "slug": "footer"
+    },
+    {
+      "id": "85",
+      "name": "header",
+      "slug": "header"
+    },
+    {
+      "id": "109",
+      "name": "page",
+      "slug": "page"
+    },
+    {
+      "id": "124",
+      "name": "section",
+      "slug": "section"
+    },
+    {
+      "id": "139",
+      "name": "woosb",
+      "slug": "woosb"
+    },
+    {
+      "id": "144",
+      "name": "Uniforms",
+      "slug": "uniforms"
+    },
+    {
+      "id": "145",
+      "name": "10",
+      "slug": "10"
+    },
+    {
+      "id": "146",
+      "name": "12",
+      "slug": "12"
+    },
+    {
+      "id": "147",
+      "name": "14",
+      "slug": "14"
+    },
+    {
+      "id": "148",
+      "name": "16",
+      "slug": "16"
+    },
+    {
+      "id": "149",
+      "name": "2",
+      "slug": "2"
+    },
+    {
+      "id": "150",
+      "name": "20",
+      "slug": "20"
+    },
+    {
+      "id": "151",
+      "name": "38",
+      "slug": "38"
+    },
+    {
+      "id": "152",
+      "name": "4",
+      "slug": "4"
+    },
+    {
+      "id": "153",
+      "name": "40",
+      "slug": "40"
+    },
+    {
+      "id": "154",
+      "name": "42",
+      "slug": "42"
+    },
+    {
+      "id": "155",
+      "name": "44",
+      "slug": "44"
+    },
+    {
+      "id": "156",
+      "name": "6",
+      "slug": "6"
+    },
+    {
+      "id": "157",
+      "name": "8",
+      "slug": "8"
+    },
+    {
+      "id": "158",
+      "name": "22",
+      "slug": "22"
+    },
+    {
+      "id": "159",
+      "name": "24",
+      "slug": "24"
+    },
+    {
+      "id": "160",
+      "name": "26",
+      "slug": "26"
+    },
+    {
+      "id": "161",
+      "name": "28",
+      "slug": "28"
+    },
+    {
+      "id": "162",
+      "name": "30",
+      "slug": "30"
+    },
+    {
+      "id": "163",
+      "name": "32",
+      "slug": "32"
+    },
+    {
+      "id": "164",
+      "name": "34",
+      "slug": "34"
+    },
+    {
+      "id": "165",
+      "name": "36",
+      "slug": "36"
+    },
+    {
+      "id": "166",
+      "name": "Home Menu",
+      "slug": "home-menu"
+    },
+    {
+      "id": "167",
+      "name": "3",
+      "slug": "3"
+    },
+    {
+      "id": "168",
+      "name": "5",
+      "slug": "5"
+    },
+    {
+      "id": "169",
+      "name": "7",
+      "slug": "7"
+    },
+    {
+      "id": "170",
+      "name": "freshio",
+      "slug": "freshio"
+    }
+  ]
+}
