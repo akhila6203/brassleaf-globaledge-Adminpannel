@@ -1,48 +1,50 @@
-# Brassleaf Admin Dashboard
+# Brassleaf Admin Panel
 
-Read-only admin dashboard for the Brassleaf WooCommerce store.
+Full **CRUD** ecommerce admin for the existing WordPress + WooCommerce MySQL database (`wpwd_` prefix, **HPOS enabled**).
+
+The React admin talks to a Node/Express API that reads and writes the live WooCommerce schema — no duplicate business tables.
 
 ## Stack
 
-| Layer    | Tech |
-|----------|------|
-| Database | MySQL — existing WooCommerce DB (`wpwd_` prefix, HPOS enabled) |
-| Backend  | Node.js + Express + mysql2 |
-| Frontend | React + Vite + Tailwind CSS v4 + Recharts + React Router |
+| Layer | Tech |
+|-------|------|
+| Database | Existing WooCommerce MySQL (`brassleaf`) |
+| Backend | Node.js, Express, mysql2, JWT |
+| Frontend | React, Vite, Material UI, Axios, Recharts, React Router |
 
----
+## Docs
+
+- `DATABASE_ANALYSIS.md` — schema inspection
+- `DATABASE_CRUD_MAPPING.md` — write mappings per module (required before CRUD)
 
 ## Setup
 
-### 1. Import the database
+### 1. Database
 
-Import `brassleaf_wp416_cornerstone.sql` into your local MySQL server:
+Import `brassleaf_wp416_cornerstone.sql` into MySQL as database `brassleaf` (if not already done).
 
-```bash
-mysql -u root -p your_database_name < brassleaf_wp416_cornerstone.sql
-```
-
-### 2. Configure the backend
+### 2. Backend
 
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env — set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
+# Set DB_* and JWT_SECRET
+npm install
+npm run dev
 ```
 
-### 3. Start the backend
+API: **http://localhost:4000**
+
+Optional (local only): set a known admin password for JWT login:
 
 ```bash
-cd backend
-npm install
-npm run dev        # development (nodemon)
-# or
-npm start          # production
+node scripts/set_admin_password.js
+# default password: Admin@12345  (override with BOOTSTRAP_ADMIN_PASSWORD)
 ```
 
-Backend runs on **http://localhost:4000**
+Login uses WordPress user `admin` with role `administrator`. Password hashes use WordPress `$wp$` + bcrypt.
 
-### 4. Start the frontend
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -50,33 +52,36 @@ npm install
 npm run dev
 ```
 
-Frontend runs on **http://localhost:5173**
+UI: **http://localhost:5173** (Vite proxies `/api` → `:4000`)
 
----
+## API modules
 
-## API Endpoints
+| Path | Ops |
+|------|-----|
+| `/api/auth` | login, me, reset-password |
+| `/api/dashboard` | live KPIs + charts data |
+| `/api/products` | GET/POST/PUT/PATCH/DELETE (trash) |
+| `/api/categories` | CRUD + assign products |
+| `/api/orders` | list/detail, status, notes, shipment meta |
+| `/api/customers` | CRUD (never returns password hashes) |
+| `/api/payments` | Paytm list/reconcile |
+| `/api/coupons` | shop_coupon CRUD |
+| `/api/shipping` | zones/methods |
+| `/api/users` | admin users / roles / password |
+| `/api/media` | upload, featured/gallery attach |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | DB connectivity check |
-| GET | `/api/dashboard` | KPIs, revenue chart, top products |
-| GET | `/api/products` | Paginated product list (`?page&limit&search&stock_status&category`) |
-| GET | `/api/products/:id` | Product detail + variations + meta + categories |
-| GET | `/api/orders` | Paginated orders (`?page&limit&status&search`) |
-| GET | `/api/orders/:id` | Order detail + addresses + items + paytm |
-| GET | `/api/customers` | Paginated customers (`?page&limit&search`) |
-| GET | `/api/customers/:id` | Customer detail + meta + recent orders |
-| GET | `/api/payments` | Paginated Paytm transactions (`?page&limit&status`) |
-| GET | `/api/payments/stats/summary` | Payment aggregate stats |
-| GET | `/api/categories` | All product categories |
-| GET | `/api/categories/:id/products` | Products in a category |
+All module routes (except login/health) require `Authorization: Bearer <JWT>`.
 
----
+## Safety
 
-## Important
+- No DROP / TRUNCATE / schema recreation
+- Multi-table writes use MySQL transactions
+- Orders use **HPOS** (`wpwd_wc_orders`), not posts as source of truth
+- Soft-delete products/coupons via `post_status = trash`
+- Existing attachment IDs and URLs are not rewritten
 
-- **This app never writes to the database.** All queries are SELECT only.
-- The WooCommerce MySQL database is the single source of truth.
-- No duplicate tables (products, orders, customers, etc.) are created.
-- Table prefix is `wpwd_` — confirmed from the actual SQL dump.
-- HPOS is enabled: orders live in `wpwd_wc_orders`, not `wpwd_posts`.
+## Important notes
+
+- `wpwd_wc_orders.customer_id` = WordPress **user ID**
+- Shipment tracking uses order meta: `_tracking_number`, `_tracking_provider`, `_shipment_status`
+- New media uploads are stored under `backend/uploads` for admin preview; sync into WordPress `wp-content/uploads` on the live host for storefront URLs

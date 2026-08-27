@@ -1,140 +1,222 @@
-import { useEffect, useState, useCallback } from 'react';
+import {
+  Box,
+  Card,
+  CardContent,
+  Grid,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPayments, getPaymentStats } from '../api/client';
-import Badge from '../components/Badge';
-import Pagination from '../components/Pagination';
-import SearchBar from '../components/SearchBar';
-import StatCard from '../components/StatCard';
-import { CreditCard, IndianRupee, CheckCircle, XCircle } from 'lucide-react';
+import { getPaymentStats, getPayments } from '../api/payments';
+import DataTable from '../components/DataTable';
+import PageHeader from '../components/PageHeader';
+import StatusBadge from '../components/StatusBadge';
+import useDebounce from '../hooks/useDebounce';
+import { formatCurrency, formatDateTime, formatNumber, fullName } from '../utils/format';
 
-function fmtDate(dt) {
-  if (!dt) return '—';
-  return new Date(dt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+function StatCard({ label, value }) {
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Typography variant="body2" color="text.secondary">
+          {label}
+        </Typography>
+        <Typography variant="h5" fontWeight={700}>
+          {value}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Payments() {
   const navigate = useNavigate();
-  const [state, setState] = useState({ data: [], total: 0, page: 1, pages: 1, loading: true, error: null });
-  const [stats, setStats] = useState(null);
-  const [statusFilter, setStatus] = useState('');
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('date');
-  const [dir, setDir] = useState('desc');
+  const debouncedSearch = useDebounce(search);
+  const [page, setPage] = useState(0);
+  const [limit, setLimit] = useState(20);
+  const [stats, setStats] = useState(null);
+  const [state, setState] = useState({ rows: [], total: 0, loading: true, error: null });
 
   useEffect(() => {
     getPaymentStats()
       .then((r) => setStats(r.data))
-      .catch(() => {});
+      .catch(() => setStats(null));
   }, []);
 
-  const load = useCallback(
-    (page = 1) => {
-      setState((s) => ({ ...s, loading: true, error: null }));
-      getPayments({
-        page,
-        limit: 20,
-        status: statusFilter || undefined,
-        search: search || undefined,
-        sort,
-        dir,
-      })
-        .then((r) =>
-          setState({ data: r.data.data, total: r.data.total, page: r.data.page, pages: r.data.pages, loading: false, error: null })
-        )
-        .catch((e) => setState((s) => ({ ...s, loading: false, error: e.message })));
-    },
-    [statusFilter, search, sort, dir]
-  );
+  const load = useCallback(() => {
+    setState((s) => ({ ...s, loading: true, error: null }));
+    getPayments({
+      page: page + 1,
+      limit,
+      search: debouncedSearch || undefined,
+    })
+      .then((r) =>
+        setState({
+          rows: r.data.data || [],
+          total: r.data.total || 0,
+          loading: false,
+          error: null,
+        })
+      )
+      .catch((e) => setState((s) => ({ ...s, loading: false, error: e.message, rows: [] })));
+  }, [page, limit, debouncedSearch]);
 
-  useEffect(() => { load(1); }, [load]);
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const columns = [
+    {
+      id: 'payment_id',
+      label: 'Payment ID',
+      width: 90,
+      render: (r) => `#${r.payment_id ?? r.id}`,
+    },
+    {
+      id: 'order_id',
+      label: 'Order ID',
+      render: (r) => (r.order_id != null ? `#${r.order_id}` : '—'),
+    },
+    {
+      id: 'paytm_order_id',
+      label: 'Paytm Order ID',
+      render: (r) => r.paytm_order_id || r.ORDERID || '—',
+    },
+    {
+      id: 'txn',
+      label: 'Transaction ID',
+      render: (r) => r.transaction_id || r.TXNID || '—',
+    },
+    {
+      id: 'customer_name',
+      label: 'Customer name',
+      render: (r) =>
+        fullName(r.customer?.first_name, r.customer?.last_name) !== '—'
+          ? fullName(r.customer?.first_name, r.customer?.last_name)
+          : fullName(r.first_name, r.last_name),
+    },
+    {
+      id: 'email',
+      label: 'Email',
+      render: (r) => r.customer?.email || r.billing_email || '—',
+    },
+    {
+      id: 'amount',
+      label: 'Amount',
+      align: 'right',
+      render: (r) => formatCurrency(r.amount ?? r.TXNAMOUNT ?? r.total_amount),
+    },
+    {
+      id: 'payment_status',
+      label: 'Payment status',
+      render: (r) => (
+        <StatusBadge value={String(r.status ?? r.STATUS ?? r.status_label ?? '')} />
+      ),
+    },
+    {
+      id: 'order_status',
+      label: 'Order status',
+      render: (r) => (r.order_status ? <StatusBadge value={r.order_status} /> : '—'),
+    },
+    {
+      id: 'payment_mode',
+      label: 'Payment mode',
+      render: (r) => r.PAYMENTMODE || r.gateway?.PAYMENTMODE || '—',
+    },
+    {
+      id: 'gateway',
+      label: 'Gateway',
+      render: (r) => r.GATEWAYNAME || r.gateway?.GATEWAYNAME || '—',
+    },
+    {
+      id: 'bank_txn',
+      label: 'Bank TXN',
+      render: (r) => r.BANKTXNID || r.gateway?.BANKTXNID || '—',
+    },
+    {
+      id: 'refund',
+      label: 'Refund',
+      align: 'right',
+      render: (r) => {
+        const amt = r.REFUNDAMT ?? r.gateway?.REFUNDAMT;
+        if (amt == null || amt === '' || Number(amt) === 0) return '—';
+        return formatCurrency(amt);
+      },
+    },
+    {
+      id: 'txn_date',
+      label: 'TXN date',
+      render: (r) => formatDateTime(r.TXNDATE || r.gateway?.TXNDATE),
+    },
+    {
+      id: 'date_added',
+      label: 'Date added',
+      render: (r) => formatDateTime(r.date_added),
+    },
+  ];
 
   return (
-    <div className="p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-        <p className="text-sm text-gray-500 mt-1">wpwd_paytm_order_data joined to wpwd_wc_orders</p>
-      </div>
+    <Box>
+      <PageHeader title="Payments" subtitle={`${formatNumber(state.total)} transactions`} />
 
-      {stats?.summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Transactions" value={stats.summary.total_transactions} icon={CreditCard} color="blue" />
-          <StatCard label="Successful" value={stats.summary.successful} icon={CheckCircle} color="emerald" />
-          <StatCard label="Failed / Pending" value={stats.summary.failed_or_pending} icon={XCircle} color="rose" />
-          <StatCard
-            label="Total Collected"
-            value={`₹${Number(stats.summary.total_collected || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-            icon={IndianRupee}
-            color="amber"
-          />
-        </div>
+      {stats && (
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard
+              label="Total transactions"
+              value={formatNumber(stats.total_transactions ?? stats.total)}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard label="Successful" value={formatNumber(stats.successful)} />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard
+              label="Failed / pending"
+              value={formatNumber(stats.failed_or_pending ?? stats.failed)}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard
+              label="Total collected"
+              value={formatCurrency(stats.total_collected)}
+            />
+          </Grid>
+        </Grid>
       )}
 
-      <div className="flex flex-wrap gap-3 items-center">
-        <SearchBar placeholder="Search txn, email, order ID…" onSearch={setSearch} className="w-72" />
-        <select value={statusFilter} onChange={(e) => setStatus(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
-          <option value="">All statuses</option>
-          <option value="1">Successful</option>
-          <option value="0">Pending / Failed</option>
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
-          <option value="date">Sort: date</option>
-          <option value="amount">Sort: amount</option>
-          <option value="order">Sort: order ID</option>
-        </select>
-        <select value={dir} onChange={(e) => setDir(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
-          <option value="desc">Desc</option>
-          <option value="asc">Asc</option>
-        </select>
-      </div>
+      <Stack direction="row" spacing={1.5} sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          placeholder="Search order or txn…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ minWidth: 260 }}
+        />
+      </Stack>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {state.loading ? (
-          <div className="p-8 text-center text-gray-400">Loading…</div>
-        ) : state.error ? (
-          <div className="p-8 text-center text-rose-600">{state.error}</div>
-        ) : (
-          <>
-            <table className="min-w-full divide-y divide-gray-100 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Paytm Order ID', 'Transaction ID', 'Customer', 'Order', 'Amount', 'Status', 'Date'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {state.data.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
-                      <CreditCard className="mx-auto mb-2 text-gray-300" size={32} />
-                      No payments found
-                    </td>
-                  </tr>
-                ) : (
-                  state.data.map((p) => (
-                    <tr key={p.id} onClick={() => navigate(`/admin/orders/${p.order_id}`)} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.paytm_order_id}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-400">{p.transaction_id || '—'}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-gray-800">{[p.first_name, p.last_name].filter(Boolean).join(' ') || '—'}</p>
-                        <p className="text-xs text-gray-400">{p.billing_email}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-xs text-gray-400">#{p.order_id}</span>
-                        <div className="mt-0.5"><Badge value={p.order_status} /></div>
-                      </td>
-                      <td className="px-4 py-3 font-semibold">₹{Number(p.total_amount || 0).toLocaleString('en-IN')}</td>
-                      <td className="px-4 py-3"><Badge value={String(p.status)} /></td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtDate(p.date_added)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            <Pagination page={state.page} pages={state.pages} onPage={load} />
-          </>
-        )}
-      </div>
-    </div>
+      <DataTable
+        columns={columns}
+        rows={state.rows}
+        loading={state.loading}
+        error={state.error}
+        page={page}
+        rowsPerPage={limit}
+        total={state.total}
+        onPageChange={setPage}
+        onRowsPerPageChange={(n) => {
+          setLimit(n);
+          setPage(0);
+        }}
+        onRowClick={(row) => navigate(`/admin/payments/${row.payment_id ?? row.id}`)}
+      />
+    </Box>
   );
 }

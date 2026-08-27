@@ -1,34 +1,40 @@
 import axios from 'axios';
 
+const TOKEN_KEY = 'brassleaf_token';
+
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
+export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+
 const client = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 30000,
+});
+
+client.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 client.interceptors.response.use(
   (res) => res,
   (err) => {
+    if (err.response?.status === 401) {
+      clearToken();
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login');
+      }
+    }
     const message =
       err.response?.data?.message ||
       err.response?.data?.error ||
-      err.message;
+      err.message ||
+      'Request failed';
     return Promise.reject(new Error(message));
   }
 );
 
 export default client;
-
-export const getDashboard     = () => client.get('/dashboard');
-export const getUsers         = (params) => client.get('/users', { params });
-export const getUser          = (id) => client.get(`/users/${id}`);
-export const getProducts      = (params) => client.get('/products', { params });
-export const getProduct       = (id) => client.get(`/products/${id}`);
-export const getOrders        = (params) => client.get('/orders', { params });
-export const getOrder         = (id) => client.get(`/orders/${id}`);
-export const getCustomers     = (params) => client.get('/customers', { params });
-export const getCustomer      = (id) => client.get(`/customers/${id}`);
-export const getPayments      = (params) => client.get('/payments', { params });
-export const getPayment       = (orderId) => client.get(`/payments/${orderId}`);
-export const getPaymentStats  = () => client.get('/payments/stats/summary');
-export const getCategories    = (params) => client.get('/categories', { params });
-export const getCategory      = (id) => client.get(`/categories/${id}`);
