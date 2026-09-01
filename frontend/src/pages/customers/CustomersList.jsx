@@ -52,11 +52,6 @@ export default function CustomersList() {
       render: (r) => `#${r.customer_id ?? r.id}`,
     },
     {
-      id: 'user_id',
-      label: 'User ID',
-      render: (r) => (r.user_id != null ? `#${r.user_id}` : '—'),
-    },
-    {
       id: 'full_name',
       label: 'Full name',
       render: (r) =>
@@ -76,11 +71,6 @@ export default function CustomersList() {
       render: (r) => formatDate(r.date_registered || r.user_registered),
     },
     {
-      id: 'last_active',
-      label: 'Last active',
-      render: (r) => formatDate(r.date_last_active),
-    },
-    {
       id: 'orders',
       label: 'Orders',
       render: (r) => formatNumber(r.orders_count ?? r.order_count ?? 0),
@@ -90,11 +80,6 @@ export default function CustomersList() {
       label: 'Lifetime value',
       align: 'right',
       render: (r) => formatCurrency(r.lifetime_value ?? r.total_spent ?? r.total_spend),
-    },
-    {
-      id: 'last_order_date',
-      label: 'Last order date',
-      render: (r) => formatDate(r.last_order_date),
     },
   ];
 

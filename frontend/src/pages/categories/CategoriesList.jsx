@@ -1,5 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
-import { Box, Button, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Stack, TextField } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCategories } from '../../api/categories';
@@ -7,12 +7,6 @@ import DataTable from '../../components/DataTable';
 import PageHeader from '../../components/PageHeader';
 import useDebounce from '../../hooks/useDebounce';
 import { formatNumber } from '../../utils/format';
-
-function truncate(text, max = 80) {
-  if (!text) return '—';
-  const s = String(text);
-  return s.length > max ? `${s.slice(0, max)}…` : s;
-}
 
 export default function CategoriesList() {
   const navigate = useNavigate();
@@ -58,21 +52,6 @@ export default function CategoriesList() {
       render: (r) => <Box sx={{ fontWeight: 600 }}>{r.name}</Box>,
     },
     { id: 'slug', label: 'Slug', render: (r) => r.slug || '—' },
-    {
-      id: 'description',
-      label: 'Description',
-      render: (r) => (
-        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 280 }}>
-          {truncate(r.description)}
-        </Typography>
-      ),
-    },
-    {
-      id: 'parent',
-      label: 'Parent',
-      render: (r) =>
-        r.parent_name || (r.parent ? `#${r.parent}` : '—'),
-    },
     {
       id: 'count',
       label: 'Product count',

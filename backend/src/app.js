@@ -18,6 +18,8 @@ const couponsRouter = require('./routes/coupons');
 const shippingRouter = require('./routes/shipping');
 const usersRouter = require('./routes/users');
 const mediaRouter = require('./routes/media');
+const reportsRouter = require('./routes/reports');
+const settingsRouter = require('./routes/settings');
 
 const app = express();
 
@@ -46,15 +48,6 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-app.get('/api/settings', async (req, res) => {
-  res.json({
-    site_url: env.wpSiteUrl,
-    prefix: P,
-    hpos: true,
-    currency: 'INR',
-  });
-});
-
 app.use('/api/auth', authRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/products', productsRouter);
@@ -66,6 +59,8 @@ app.use('/api/coupons', couponsRouter);
 app.use('/api/shipping', shippingRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/media', mediaRouter);
+app.use('/api/reports', reportsRouter);
+app.use('/api/settings', settingsRouter);
 
 app.use(errorHandler);
 

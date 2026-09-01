@@ -138,17 +138,6 @@ export default function CategoryDetails() {
           <Row label="ID" value={`#${data.term_id ?? data.id}`} />
           <Row label="Name" value={data.name} />
           <Row label="Slug" value={data.slug} />
-          <Row label="Description" value={data.description} />
-          <Row
-            label="Parent"
-            value={
-              data.parent_name
-                ? `${data.parent_name} (#${data.parent})`
-                : data.parent
-                  ? `#${data.parent}`
-                  : null
-            }
-          />
           <Row
             label="Product count"
             value={formatNumber(data.product_count ?? data.count ?? 0)}

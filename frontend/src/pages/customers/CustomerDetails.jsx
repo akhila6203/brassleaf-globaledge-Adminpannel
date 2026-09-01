@@ -130,7 +130,6 @@ export default function CustomerDetails() {
                 Customer information
               </Typography>
               <Row label="Customer ID" value={`#${data.customer_id ?? data.id}`} />
-              <Row label="User ID" value={data.user_id != null ? `#${data.user_id}` : null} />
               <Row label="Username" value={data.username || data.user_login} />
               <Row label="Display name" value={data.display_name} />
               <Row label="First name" value={data.first_name} />
@@ -145,7 +144,6 @@ export default function CustomerDetails() {
                 label="Registered"
                 value={formatDateTime(data.date_registered || data.user_registered)}
               />
-              <Row label="Last active" value={formatDateTime(data.date_last_active)} />
               <Row
                 label="User status"
                 value={data.user_status != null ? String(data.user_status) : null}

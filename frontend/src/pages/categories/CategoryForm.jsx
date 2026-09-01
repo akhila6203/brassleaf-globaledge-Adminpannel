@@ -2,11 +2,7 @@ import {
   Alert,
   Box,
   Button,
-  FormControl,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Stack,
   TextField,
 } from '@mui/material';
@@ -14,7 +10,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   createCategory,
-  getCategories,
   getCategory,
   updateCategory,
 } from '../../api/categories';
@@ -22,7 +17,7 @@ import LoadingSkeleton from '../../components/LoadingSkeleton';
 import PageHeader from '../../components/PageHeader';
 import { useSnackbar } from '../../context/SnackbarContext';
 
-const empty = { name: '', slug: '', description: '', parent: 0 };
+const empty = { name: '', slug: '' };
 
 export default function CategoryForm() {
   const { id } = useParams();
@@ -30,19 +25,9 @@ export default function CategoryForm() {
   const navigate = useNavigate();
   const { showToast } = useSnackbar();
   const [form, setForm] = useState(empty);
-  const [parents, setParents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    getCategories({ limit: 200 })
-      .then((r) => {
-        const rows = r.data.data || r.data || [];
-        setParents(rows.filter((c) => String(c.term_id || c.id) !== String(id)));
-      })
-      .catch(() => setParents([]));
-  }, [id]);
 
   useEffect(() => {
     if (!isEdit) {
@@ -56,8 +41,6 @@ export default function CategoryForm() {
         setForm({
           name: c.name || '',
           slug: c.slug || '',
-          description: c.description || '',
-          parent: c.parent || 0,
         });
       })
       .catch((e) => setError(e.message))
@@ -71,10 +54,7 @@ export default function CategoryForm() {
     setSaving(true);
     setError('');
     try {
-      const payload = {
-        ...form,
-        parent: form.parent === '' || form.parent == null ? 0 : Number(form.parent),
-      };
+      const payload = { ...form };
       if (isEdit) {
         await updateCategory(id, payload);
         showToast('Category updated', 'success');
@@ -114,29 +94,6 @@ export default function CategoryForm() {
           <Stack spacing={2.5}>
             <TextField label="Name" value={form.name} onChange={set('name')} required fullWidth />
             <TextField label="Slug" value={form.slug} onChange={set('slug')} fullWidth />
-            <FormControl fullWidth>
-              <InputLabel>Parent category</InputLabel>
-              <Select
-                label="Parent category"
-                value={form.parent || 0}
-                onChange={set('parent')}
-              >
-                <MenuItem value={0}>None (top-level)</MenuItem>
-                {parents.map((c) => (
-                  <MenuItem key={c.term_id || c.id} value={c.term_id || c.id}>
-                    {c.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              label="Description"
-              value={form.description}
-              onChange={set('description')}
-              multiline
-              minRows={3}
-              fullWidth
-            />
             <Stack direction="row" justifyContent="flex-end">
               <Button type="submit" variant="contained" disabled={saving}>
                 {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create category'}

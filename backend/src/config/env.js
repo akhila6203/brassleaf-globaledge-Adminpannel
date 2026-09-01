@@ -15,4 +15,14 @@ module.exports = {
     database: process.env.DB_NAME || 'brassleaf',
   },
   prefix: 'wpwd_',
+  adminEmail: process.env.ADMIN_EMAIL || process.env.STORE_EMAIL || '',
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  },
+  dailyReportCron: process.env.DAILY_REPORT_CRON || '55 23 * * *',
 };

@@ -21,6 +21,7 @@ import Shipping from '../pages/Shipping';
 import UsersList from '../pages/users/UsersList';
 import UserDetails from '../pages/users/UserDetails';
 import UserForm from '../pages/users/UserForm';
+import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
 import ProtectedRoute from './ProtectedRoute';
 
@@ -55,6 +56,8 @@ export default function AppRoutes() {
 
           <Route path="payments" element={<Payments />} />
           <Route path="payments/:id" element={<PaymentDetails />} />
+
+          <Route path="reports" element={<Reports />} />
 
           <Route path="coupons" element={<CouponsList />} />
           <Route path="coupons/new" element={<CouponForm />} />

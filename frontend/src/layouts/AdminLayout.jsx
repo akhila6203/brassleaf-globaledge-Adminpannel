@@ -27,6 +27,7 @@ import {
   Truck,
   Shield,
   Settings,
+  FileText,
   Leaf,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -42,6 +43,7 @@ const navItems = [
   { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/payments', label: 'Payments', icon: CreditCard },
+  { to: '/admin/reports', label: 'Reports', icon: FileText },
   { to: '/admin/coupons', label: 'Coupons', icon: TicketPercent },
   { to: '/admin/shipping', label: 'Shipping', icon: Truck },
   { to: '/admin/users', label: 'Users / Admins', icon: Shield },
