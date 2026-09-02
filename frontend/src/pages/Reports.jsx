@@ -1,6 +1,8 @@
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import DownloadIcon from '@mui/icons-material/Download';
-import EmailIcon from '@mui/icons-material/Email';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import {
+  Alert,
   Autocomplete,
   Box,
   Button,
@@ -18,15 +20,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getCustomers } from '../api/customers';
 import {
   downloadReports,
-  emailCustomerInvoices,
+  getReportSchedule,
   getReportSummary,
   getReports,
+  saveReportSchedule,
 } from '../api/reports';
 import DataTable from '../components/DataTable';
 import PageHeader from '../components/PageHeader';
 import { useSnackbar } from '../context/SnackbarContext';
 import useDebounce from '../hooks/useDebounce';
-import { formatCurrency, formatDate, formatNumber, fullName } from '../utils/format';
+import { formatCurrency, formatDate, fullName } from '../utils/format';
 
 const RANGE_OPTIONS = [
   { value: 'today', label: 'Today' },
@@ -36,6 +39,11 @@ const RANGE_OPTIONS = [
   { value: 'last_30_days', label: 'Last 30 Days' },
   { value: 'this_month', label: 'This Month' },
   { value: 'custom', label: 'Custom Date Range' },
+];
+
+const REPORT_DAY_OPTIONS = [
+  { value: 'previous', label: 'Previous day' },
+  { value: 'today', label: 'Current day' },
 ];
 
 function StatCard({ label, value }) {
@@ -70,12 +78,36 @@ export default function Reports() {
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [downloading, setDownloading] = useState('');
-  const [emailing, setEmailing] = useState(false);
+
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [scheduleForm, setScheduleForm] = useState({
+    admin_email: '',
+    send_time: '08:00',
+    report_day: 'previous',
+    timezone: 'Asia/Kolkata',
+  });
 
   useEffect(() => {
     getCustomers({ limit: 500, sort: 'name', dir: 'asc' })
       .then((r) => setCustomers(r.data.data || []))
       .catch(() => setCustomers([]));
+  }, []);
+
+  useEffect(() => {
+    getReportSchedule()
+      .then(({ data }) => {
+        setScheduleForm({
+          admin_email: data.schedule?.admin_email || '',
+          send_time: data.schedule?.send_time || '08:00',
+          report_day: data.schedule?.report_day || 'previous',
+          timezone: data.schedule?.timezone || 'Asia/Kolkata',
+        });
+        setSmtpStatus(data.smtp || null);
+      })
+      .catch(() => setSmtpStatus(null))
+      .finally(() => setScheduleLoading(false));
   }, []);
 
   const customerIds = useMemo(
@@ -110,7 +142,6 @@ export default function Reports() {
         });
         setSummary(summaryRes.data);
         setRangeLabel(listRes.data.range?.label || summaryRes.data.range?.label || '');
-        setSelectedOrders(new Set());
       })
       .catch((e) => setState((s) => ({ ...s, loading: false, error: e.message, rows: [] })));
   }, [page, limit, filterParams]);
@@ -136,8 +167,15 @@ export default function Reports() {
     setDownloading(type);
     try {
       await downloadReports({ type, ...downloadOpts() });
+      const orderIds = [...selectedOrders];
+      const countLabel =
+        orderIds.length > 0
+          ? `${orderIds.length} selected order(s) in one file`
+          : range === 'today'
+            ? "today's orders"
+            : 'matching orders';
       showToast(
-        type === 'invoice' ? 'Invoices downloaded' : 'Packing slips downloaded',
+        `${type === 'invoice' ? 'Invoices' : 'Packing slips'} downloaded (${countLabel})`,
         'success'
       );
     } catch (e) {
@@ -147,27 +185,22 @@ export default function Reports() {
     }
   };
 
-  const runEmailCustomers = async () => {
-    const orderIds = [...selectedOrders];
-    if (!orderIds.length && !customerIds.length) {
-      showToast('Select customers or orders to email invoices', 'error');
-      return;
-    }
-    setEmailing(true);
+  const handleSaveSchedule = async () => {
+    setScheduleSaving(true);
     try {
-      const { data } = await emailCustomerInvoices({
-        order_ids: orderIds,
-        customer_ids: customerIds,
-        range,
-        date: range === 'select_date' ? selectDate : undefined,
-        date_from: range === 'custom' ? dateFrom : undefined,
-        date_to: range === 'custom' ? dateTo : undefined,
+      const { data } = await saveReportSchedule(scheduleForm);
+      setScheduleForm({
+        admin_email: data.schedule?.admin_email || scheduleForm.admin_email,
+        send_time: data.schedule?.send_time || scheduleForm.send_time,
+        report_day: data.schedule?.report_day || scheduleForm.report_day,
+        timezone: data.schedule?.timezone || 'Asia/Kolkata',
       });
-      showToast(`Invoice emailed to ${data.sent} customer(s)`, 'success');
+      setSmtpStatus(data.smtp || null);
+      showToast('Daily email schedule saved', 'success');
     } catch (e) {
       showToast(e.message, 'error');
     } finally {
-      setEmailing(false);
+      setScheduleSaving(false);
     }
   };
 
@@ -259,10 +292,10 @@ export default function Reports() {
           <Button
             size="small"
             variant="outlined"
-            disabled={!r.has_invoice || downloading}
+            disabled={Boolean(downloading)}
             onClick={() =>
               downloadReports({ type: 'invoice', orderIds: [r.order_id] })
-                .then(() => showToast('Invoice downloaded', 'success'))
+                .then(() => showToast(`Invoice #${r.invoice_number || r.order_id} downloaded`, 'success'))
                 .catch((e) => showToast(e.message, 'error'))
             }
           >
@@ -271,10 +304,10 @@ export default function Reports() {
           <Button
             size="small"
             variant="outlined"
-            disabled={!r.has_packing_slip || downloading}
+            disabled={Boolean(downloading)}
             onClick={() =>
               downloadReports({ type: 'packing-slip', orderIds: [r.order_id] })
-                .then(() => showToast('Packing slip downloaded', 'success'))
+                .then(() => showToast(`Packing slip #${r.order_id} downloaded`, 'success'))
                 .catch((e) => showToast(e.message, 'error'))
             }
           >
@@ -291,15 +324,14 @@ export default function Reports() {
         title="Reports"
         subtitle={`Live WooCommerce data${rangeLabel ? ` for ${rangeLabel}` : ''}`}
         actions={
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Button
-              variant="outlined"
-              startIcon={<EmailIcon />}
-              disabled={emailing}
-              onClick={runEmailCustomers}
-            >
-              {emailing ? 'Sending…' : 'Email invoices'}
-            </Button>
+          <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+            {selectedOrders.size > 0 && (
+              <Chip
+                size="small"
+                color="primary"
+                label={`${selectedOrders.size} order${selectedOrders.size === 1 ? '' : 's'} selected`}
+              />
+            )}
             <Button
               variant="contained"
               startIcon={<DownloadIcon />}
@@ -451,6 +483,96 @@ export default function Reports() {
         emptyTitle="No documents found"
         emptyDescription="Try changing the date range, customer filter, or search."
       />
+
+      <Card variant="outlined" sx={{ mt: 3 }}>
+        <CardContent>
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            Automatic daily email
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 900 }}>
+            The backend sends a combined invoice and packing slip PDF at the time below (Asia/Kolkata).
+            Days with zero valid orders are skipped. Recipient defaults to the WordPress admin email.
+          </Typography>
+
+          {!scheduleLoading && smtpStatus && (
+            <Alert
+              severity={smtpStatus.ok ? 'success' : 'warning'}
+              icon={smtpStatus.ok ? <CheckCircleOutlineIcon /> : <ErrorOutlineIcon />}
+              sx={{ mb: 2 }}
+            >
+              {smtpStatus.ok
+                ? `SMTP connection verified (${smtpStatus.user_masked}).`
+                : smtpStatus.error || 'SMTP is not configured correctly.'}
+            </Alert>
+          )}
+
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Admin email"
+                type="email"
+                value={scheduleForm.admin_email}
+                onChange={(e) =>
+                  setScheduleForm((f) => ({ ...f, admin_email: e.target.value }))
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Send time"
+                type="time"
+                value={scheduleForm.send_time}
+                onChange={(e) =>
+                  setScheduleForm((f) => ({ ...f, send_time: e.target.value }))
+                }
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                fullWidth
+                select
+                size="small"
+                label="Report day"
+                value={scheduleForm.report_day}
+                onChange={(e) =>
+                  setScheduleForm((f) => ({ ...f, report_day: e.target.value }))
+                }
+              >
+                {REPORT_DAY_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Timezone"
+                value={scheduleForm.timezone}
+                InputProps={{ readOnly: true }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Stack direction="row" justifyContent="flex-end">
+                <Button
+                  variant="contained"
+                  disabled={scheduleSaving || scheduleLoading}
+                  onClick={handleSaveSchedule}
+                >
+                  {scheduleSaving ? 'Saving…' : 'Save schedule'}
+                </Button>
+              </Stack>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
     </Box>
   );
 }

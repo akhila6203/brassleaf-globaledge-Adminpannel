@@ -39,6 +39,8 @@ const settingsRouter = require("./routes/settings");
 
 const customerAuthRouter = require("./routes/customerAuth");
 
+const customerOrdersRouter = require("./routes/customerOrders");
+
 const publicProductsRouter = require("./routes/publicProducts");
 
 const publicCategoriesRouter = require("./routes/publicCategories");
@@ -214,6 +216,11 @@ app.get(
 app.use(
   "/api/auth/customer",
   customerAuthRouter
+);
+
+app.use(
+  "/api/customer",
+  customerOrdersRouter
 );
 
 

@@ -7,8 +7,9 @@ const ctrl = require('../controllers/reportController');
 router.use(authenticate, requireAdmin);
 router.get('/summary', asyncHandler(ctrl.summary));
 router.get('/', asyncHandler(ctrl.list));
+router.get('/schedule', asyncHandler(ctrl.getSchedule));
+router.put('/schedule', asyncHandler(ctrl.saveSchedule));
 router.get('/download', asyncHandler(ctrl.download));
-router.post('/email/customer', asyncHandler(ctrl.emailCustomer));
 router.post('/email/daily', asyncHandler(ctrl.emailDaily));
 
 module.exports = router;

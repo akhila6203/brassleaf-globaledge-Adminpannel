@@ -16,6 +16,10 @@ function getTransporter() {
       user: env.smtp.user,
       pass: env.smtp.pass,
     },
+    tls: {
+      rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED === 'true',
+      minVersion: 'TLSv1.2',
+    },
   });
   return transporter;
 }

@@ -26,6 +26,13 @@ function isPlaceholderSmtp(creds) {
 
 function createTransporter() {
   const creds = smtpCredentials();
+  const rejectUnauthorized =
+    process.env.SMTP_TLS_REJECT_UNAUTHORIZED === 'true'
+      ? true
+      : process.env.SMTP_TLS_REJECT_UNAUTHORIZED === 'false'
+        ? false
+        : process.env.NODE_ENV === 'production';
+
   return nodemailer.createTransport({
     host: creds.host,
     port: creds.port,
@@ -34,6 +41,11 @@ function createTransporter() {
     auth: {
       user: creds.user,
       pass: creds.pass,
+    },
+    tls: {
+      // Fixes "self-signed certificate in certificate chain" on some networks/antivirus proxies
+      rejectUnauthorized,
+      minVersion: 'TLSv1.2',
     },
   });
 }
