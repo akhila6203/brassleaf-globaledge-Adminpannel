@@ -406,7 +406,7 @@ export default function Reports() {
           </Stack>
         )}
 
-        <Autocomplete
+        {/* <Autocomplete
           multiple
           options={customers}
           value={selectedCustomers}
@@ -436,15 +436,15 @@ export default function Reports() {
             />
           )}
           sx={{ maxWidth: 640 }}
-        />
+        /> */}
 
-        <TextField
+        {/* <TextField
           size="small"
           placeholder="Search order, email, or document number…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ minWidth: 280, maxWidth: 420 }}
-        />
+        /> */}
       </Stack>
 
       {summary && (
