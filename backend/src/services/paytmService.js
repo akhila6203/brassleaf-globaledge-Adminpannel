@@ -9,6 +9,8 @@ const { nowLocal } = require('../utils/datetime');
 const { withTransaction } = require('../utils/transaction');
 const orderService = require('./orderService');
 const orderEmailService = require('./orderEmailService');
+const invoiceService =
+  require('./invoiceService');
 
 async function getOption(key) {
   const [[row]] = await pool.query(
@@ -513,19 +515,65 @@ async function applyPaymentResult(orderId, gatewayPayload = {}) {
       [nextStatus, orderId]
     );
 
-    if (success) {
-      await conn.query(
-        `UPDATE ${P}wc_order_operational_data
-         SET date_paid_gmt = COALESCE(date_paid_gmt, ?), recorded_sales = 1
-         WHERE order_id = ?`,
-        [gmt, orderId]
-      );
+    // if (success) {
+      // await conn.query(
+      //   `UPDATE ${P}wc_order_operational_data
+      //    SET date_paid_gmt = COALESCE(date_paid_gmt, ?), recorded_sales = 1
+      //    WHERE order_id = ?`,
+      //   [gmt, orderId]
+      // );
 
-      await conn.query(
-        `UPDATE ${P}wc_order_stats SET date_paid = ?, date_paid_gmt = ? WHERE order_id = ?`,
-        [gmt, gmt, orderId]
-      );
-    }
+      // await conn.query(
+      //   `UPDATE ${P}wc_order_stats SET date_paid = ?, date_paid_gmt = ? WHERE order_id = ?`,
+      //   [gmt, gmt, orderId]
+      // );
+      // await conn.query(
+      //   `UPDATE ${P}wc_order_stats
+      //   SET date_paid = ?
+      //   WHERE order_id = ?`,
+      //   [gmt, orderId]
+      // );
+    // }
+    if (success) {
+  await conn.query(
+    `UPDATE ${P}wc_order_operational_data
+     SET
+       date_paid_gmt =
+         COALESCE(
+           date_paid_gmt,
+           ?
+         ),
+       recorded_sales = 1
+     WHERE order_id = ?`,
+    [
+      gmt,
+      orderId,
+    ]
+  );
+
+  await conn.query(
+    `UPDATE ${P}wc_order_stats
+     SET date_paid = ?
+     WHERE order_id = ?`,
+    [
+      gmt,
+      orderId,
+    ]
+  );
+
+  /*
+   * IMPORTANT:
+   * Generate invoice number only after
+   * Paytm payment is verified successful.
+   *
+   * Same transaction use chestundi.
+   */
+  await invoiceService
+    .ensureInvoiceNumber(
+      orderId,
+      conn
+    );
+}
 
     return { success, status: nextStatus, transactionId: txnId };
   });
@@ -761,23 +809,219 @@ async function handleCallback(
   };
 }
 
+// async function verifyOrderPayment(
+//   orderId,
+//   customerId,
+//   requestedPaytmOrderId
+// ) {
+//   const [[order]] =
+//     await pool.query(
+//       `SELECT
+//          id,
+//          customer_id,
+//          status
+//        FROM ${P}wc_orders
+//        WHERE id = ?
+//          AND type = 'shop_order'
+//        LIMIT 1`,
+//       [orderId]
+//     );
+
+//   if (!order) {
+//     throw httpError(
+//       404,
+//       'Order not found.'
+//     );
+//   }
+
+//   if (
+//     Number(order.customer_id) !==
+//     Number(customerId)
+//   ) {
+//     throw httpError(
+//       403,
+//       'You do not have access to this order.'
+//     );
+//   }
+
+//   const requestedId =
+//   String(
+//     requestedPaytmOrderId ||
+//     ''
+//   ).trim();
+
+// let paymentRow;
+
+// if (requestedId) {
+//   [[paymentRow]] =
+//     await pool.query(
+//       `SELECT
+//          id,
+//          order_id,
+//          paytm_order_id,
+//          status
+//        FROM ${P}paytm_order_data
+//        WHERE order_id = ?
+//          AND paytm_order_id = ?
+//        ORDER BY id DESC
+//        LIMIT 1`,
+//       [
+//         orderId,
+//         requestedId,
+//       ]
+//     );
+// } else {
+//   [[paymentRow]] =
+//     await pool.query(
+//       `SELECT
+//          id,
+//          order_id,
+//          paytm_order_id,
+//          status
+//        FROM ${P}paytm_order_data
+//        WHERE order_id = ?
+//        ORDER BY id DESC
+//        LIMIT 1`,
+//       [orderId]
+//     );
+// }
+
+// if (!paymentRow) {
+//   throw httpError(
+//     400,
+//     'Invalid Paytm transaction reference.'
+//   );
+// }
+
+// const paytmOrderId =
+//   String(
+//     paymentRow.paytm_order_id ||
+//     ''
+//   ).trim();
+
+// if (!paytmOrderId) {
+//   throw httpError(
+//     400,
+//     'Paytm transaction reference not found.'
+//   );
+// }
+//   // let paytmOrderId =
+//   //   String(
+//   //     requestedPaytmOrderId ||
+//   //     ''
+//   //   ).trim();
+
+//   // if (!paytmOrderId) {
+//   //   const [[paymentRow]] =
+//   //     await pool.query(
+//   //       `SELECT paytm_order_id
+//   //        FROM ${P}paytm_order_data
+//   //        WHERE order_id = ?
+//   //        ORDER BY id DESC
+//   //        LIMIT 1`,
+//   //       [orderId]
+//   //     );
+
+//   //   paytmOrderId =
+//   //     paymentRow &&
+//   //     paymentRow.paytm_order_id
+//   //       ? paymentRow.paytm_order_id
+//   //       : '';
+//   // }
+
+//   if (!paytmOrderId) {
+//     throw httpError(
+//       400,
+//       'Paytm transaction reference not found.'
+//     );
+//   }
+
+//   const verifyData =
+//     await verifyTransaction(
+//       paytmOrderId
+//     );
+
+//   const body =
+//     verifyData &&
+//     verifyData.body
+//       ? verifyData.body
+//       : {};
+
+//   const resultInfo =
+//     body.resultInfo || {};
+
+//   const resultStatus =
+//     String(
+//       resultInfo.resultStatus ||
+//       ''
+//     ).toUpperCase();
+
+//   const success =
+//     resultStatus ===
+//     'TXN_SUCCESS';
+
+//   const result =
+//     await applyPaymentResult(
+//       Number(orderId),
+//       {
+//         STATUS:
+//           success
+//             ? 'TXN_SUCCESS'
+//             : resultStatus,
+
+//         TXNID:
+//           body.txnId || '',
+
+//         ORDERID:
+//           paytmOrderId,
+
+//         BANKTXNID:
+//           body.bankTxnId || '',
+
+//         PAYMENTMODE:
+//           body.paymentMode || '',
+
+//         RESPMSG:
+//           resultInfo.resultMsg || '',
+//       }
+//     );
+
+//   if (result.success) {
+//     orderEmailService
+//       .sendOrderEmails(
+//         Number(orderId)
+//       )
+//       .catch((err) => {
+//         console.error(
+//           '[Order email]',
+//           err.message
+//         );
+//       });
+//   }
+
+//   return {
+//     ...result,
+//     paytmOrderId,
+//     gatewayStatus:
+//       resultStatus,
+//   };
+// }
 async function verifyOrderPayment(
   orderId,
   customerId,
   requestedPaytmOrderId
 ) {
-  const [[order]] =
-    await pool.query(
-      `SELECT
-         id,
-         customer_id,
-         status
-       FROM ${P}wc_orders
-       WHERE id = ?
-         AND type = 'shop_order'
-       LIMIT 1`,
-      [orderId]
-    );
+  const [[order]] = await pool.query(
+    `SELECT
+       id,
+       customer_id,
+       status
+     FROM ${P}wc_orders
+     WHERE id = ?
+       AND type = 'shop_order'
+     LIMIT 1`,
+    [orderId]
+  );
 
   if (!order) {
     throw httpError(
@@ -796,90 +1040,25 @@ async function verifyOrderPayment(
     );
   }
 
-  const requestedId =
-  String(
-    requestedPaytmOrderId ||
-    ''
-  ).trim();
+  let paytmOrderId =
+    String(
+      requestedPaytmOrderId || ''
+    ).trim();
 
-let paymentRow;
+  if (!paytmOrderId) {
+    const [[paymentRow]] =
+      await pool.query(
+        `SELECT paytm_order_id
+         FROM ${P}paytm_order_data
+         WHERE order_id = ?
+         ORDER BY id DESC
+         LIMIT 1`,
+        [orderId]
+      );
 
-if (requestedId) {
-  [[paymentRow]] =
-    await pool.query(
-      `SELECT
-         id,
-         order_id,
-         paytm_order_id,
-         status
-       FROM ${P}paytm_order_data
-       WHERE order_id = ?
-         AND paytm_order_id = ?
-       ORDER BY id DESC
-       LIMIT 1`,
-      [
-        orderId,
-        requestedId,
-      ]
-    );
-} else {
-  [[paymentRow]] =
-    await pool.query(
-      `SELECT
-         id,
-         order_id,
-         paytm_order_id,
-         status
-       FROM ${P}paytm_order_data
-       WHERE order_id = ?
-       ORDER BY id DESC
-       LIMIT 1`,
-      [orderId]
-    );
-}
-
-if (!paymentRow) {
-  throw httpError(
-    400,
-    'Invalid Paytm transaction reference.'
-  );
-}
-
-const paytmOrderId =
-  String(
-    paymentRow.paytm_order_id ||
-    ''
-  ).trim();
-
-if (!paytmOrderId) {
-  throw httpError(
-    400,
-    'Paytm transaction reference not found.'
-  );
-}
-  // let paytmOrderId =
-  //   String(
-  //     requestedPaytmOrderId ||
-  //     ''
-  //   ).trim();
-
-  // if (!paytmOrderId) {
-  //   const [[paymentRow]] =
-  //     await pool.query(
-  //       `SELECT paytm_order_id
-  //        FROM ${P}paytm_order_data
-  //        WHERE order_id = ?
-  //        ORDER BY id DESC
-  //        LIMIT 1`,
-  //       [orderId]
-  //     );
-
-  //   paytmOrderId =
-  //     paymentRow &&
-  //     paymentRow.paytm_order_id
-  //       ? paymentRow.paytm_order_id
-  //       : '';
-  // }
+    paytmOrderId =
+      paymentRow?.paytm_order_id || '';
+  }
 
   if (!paytmOrderId) {
     throw httpError(
@@ -888,29 +1067,68 @@ if (!paytmOrderId) {
     );
   }
 
+  /*
+   * Verify directly with Paytm.
+   */
   const verifyData =
     await verifyTransaction(
       paytmOrderId
     );
 
+  console.log(
+    '[Paytm verify response]',
+    JSON.stringify(
+      verifyData,
+      null,
+      2
+    )
+  );
+
   const body =
-    verifyData &&
-    verifyData.body
-      ? verifyData.body
-      : {};
+    verifyData?.body || {};
 
   const resultInfo =
-    body.resultInfo || {};
+    body?.resultInfo || {};
 
   const resultStatus =
     String(
-      resultInfo.resultStatus ||
+      resultInfo?.resultStatus ||
       ''
     ).toUpperCase();
 
+  const txnId =
+    body?.txnId ||
+    body?.TXNID ||
+    '';
+
+  const bankTxnId =
+    body?.bankTxnId ||
+    body?.BANKTXNID ||
+    '';
+
+  const paymentMode =
+    body?.paymentMode ||
+    body?.PAYMENTMODE ||
+    '';
+
+  /*
+   * ONLY verified Paytm success
+   * can mark order paid.
+   */
   const success =
     resultStatus ===
     'TXN_SUCCESS';
+
+  console.log(
+    '[Paytm verify result]',
+    {
+      orderId,
+      paytmOrderId,
+      resultStatus,
+      txnId,
+      success,
+    }
+  );
 
   const result =
     await applyPaymentResult(
@@ -922,38 +1140,58 @@ if (!paytmOrderId) {
             : resultStatus,
 
         TXNID:
-          body.txnId || '',
+          txnId,
 
         ORDERID:
           paytmOrderId,
 
         BANKTXNID:
-          body.bankTxnId || '',
+          bankTxnId,
 
         PAYMENTMODE:
-          body.paymentMode || '',
+          paymentMode,
 
         RESPMSG:
-          resultInfo.resultMsg || '',
+          resultInfo?.resultMsg || '',
       }
     );
 
-  if (result.success) {
-    orderEmailService
-      .sendOrderEmails(
-        Number(orderId)
-      )
-      .catch((err) => {
-        console.error(
-          '[Order email]',
-          err.message
-        );
-      });
+  if (!result.success) {
+    return {
+      success: false,
+      status: result.status,
+      transactionId:
+        result.transactionId,
+      paytmOrderId,
+      gatewayStatus:
+        resultStatus,
+      message:
+        resultInfo?.resultMsg ||
+        'Payment is not confirmed by Paytm.',
+    };
   }
+
+  /*
+   * Send customer order email.
+   */
+  orderEmailService
+    .sendOrderEmails(
+      Number(orderId)
+    )
+    .catch((err) => {
+      console.error(
+        '[Order email]',
+        err.message
+      );
+    });
 
   return {
     ...result,
+
+    success: true,
+
     paytmOrderId,
+
     gatewayStatus:
       resultStatus,
   };
@@ -977,6 +1215,7 @@ module.exports = {
   getPublicConfig,
   getCallbackUrl,
 };
+
 // module.exports = {
 //   getPaytmCredentials,
 //   initiatePayment,

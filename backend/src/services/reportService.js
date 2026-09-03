@@ -5,7 +5,8 @@ const { resolveDateRange, formatKolkataDate } = require('../utils/dateRange');
 const { unserializePhp } = require('../utils/php');
 const { httpError } = require('../utils/httpError');
 const orderService = require('./orderService');
-const { htmlToPdfBuffer, toBuffer } = require('./pdfService');
+const PDFDocument = require('pdfkit');
+// const { htmlToPdfBuffer, toBuffer } = require('./pdfService');
 const { sendMail } = require('./mailService');
 const env = require('../config/env');
 const fs = require('fs');
@@ -194,7 +195,7 @@ function getLogoDataUri() {
 
   const logoPath = path.join(
     __dirname,
-    '../../../frontend/public/logo.jpg'
+    '../../assets/logo.jpg'
   );
 
   if (!fs.existsSync(logoPath)) {
@@ -215,26 +216,7 @@ function getLogoDataUri() {
 
   return logoDataUriCache;
 }
-// function getLogoDataUri() {
-//   if (logoDataUriCache) return logoDataUriCache;
 
-//   const candidates = [
-//     path.join(__dirname, '../../assets/brassleaf-logo.png'),
-//     path.join(__dirname, '../../assets/brassleaf-logo.svg'),
-//     path.join(__dirname, '../../../../brassleaf-globaledge-userside/public/logo.svg'),
-//   ];
-
-//   for (const file of candidates) {
-//     if (!fs.existsSync(file)) continue;
-//     const ext = path.extname(file).slice(1).toLowerCase();
-//     const mime = ext === 'svg' ? 'image/svg+xml' : 'image/png';
-//     logoDataUriCache = `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
-//     return logoDataUriCache;
-//   }
-
-//   logoDataUriCache = '';
-//   return logoDataUriCache;
-// }
 
 function documentStyles() {
   return `
@@ -645,7 +627,11 @@ async function enrichOrder(order) {
     subtotal,
     shipping_cost: shippingCost,
     shipping_label: shippingLabel,
-    invoice_number: metaMap._wcpdf_invoice_number || order.invoice_number || order.id,
+    invoice_number:
+  metaMap._wcpdf_invoice_number ||
+  order.invoice_number ||
+  null,
+    // invoice_number: metaMap._wcpdf_invoice_number || order.invoice_number || order.id,
     invoice_date: metaMap._wcpdf_invoice_date_formatted || order.invoice_date || order.date_created_gmt,
     packing_slip_number: order.id,
     customer_name: order.billing
@@ -653,6 +639,1256 @@ async function enrichOrder(order) {
       : null,
     institution_name: await resolveInstitutionName(order),
   };
+}
+
+function moneyText(amount) {
+  const n = Number(amount || 0);
+
+  return `Rs. ${n.toLocaleString(
+    'en-IN',
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }
+  )}`;
+}
+
+function pdfDate(value) {
+  if (!value) {
+    return '—';
+  }
+
+  const d = new Date(value);
+
+  if (Number.isNaN(d.getTime())) {
+    return String(value);
+  }
+
+  return d.toLocaleDateString(
+    'en-IN',
+    {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    }
+  );
+}
+
+// function getPdfLogoPath() {
+//   const logoPath = path.join(
+//     __dirname,
+//     '../../../frontend/public/logo.jpg'
+//   );
+
+//   return fs.existsSync(logoPath)
+//     ? logoPath
+//     : null;
+// }
+function getPdfLogoPath() {
+  const logoPath = path.join(
+    __dirname,
+    '../../assets/logo.jpg'
+  );
+
+  if (!fs.existsSync(logoPath)) {
+    console.error(
+      'PDF logo not found:',
+      logoPath
+    );
+
+    return null;
+  }
+
+  return logoPath;
+}
+
+function createPdfDocument() {
+  return new PDFDocument({
+    size: 'A4',
+    margins: {
+      top: 36,
+      bottom: 40,
+      left: 44,
+      right: 44,
+    },
+    bufferPages: true,
+  });
+}
+
+function collectPdfBuffer(doc) {
+  return new Promise(
+    (resolve, reject) => {
+      const chunks = [];
+
+      doc.on(
+        'data',
+        (chunk) => {
+          chunks.push(chunk);
+        }
+      );
+
+      doc.on(
+        'end',
+        () => {
+          resolve(
+            Buffer.concat(chunks)
+          );
+        }
+      );
+
+      doc.on(
+        'error',
+        reject
+      );
+    }
+  );
+}
+
+function ensurePdfSpace(
+  doc,
+  requiredHeight = 100
+) {
+  const bottom =
+    doc.page.height -
+    doc.page.margins.bottom;
+
+  if (
+    doc.y + requiredHeight >
+    bottom
+  ) {
+    doc.addPage();
+  }
+}
+
+function drawPdfHeader(
+  doc,
+  order,
+  type
+) {
+  const isInvoice =
+    type === 'invoice';
+
+  const logoPath =
+    getPdfLogoPath();
+
+  const startY =
+    doc.page.margins.top;
+
+  if (logoPath) {
+    try {
+      // doc.image(
+      //   logoPath,
+      //   doc.page.margins.left,
+      //   startY,
+      //   {
+      //     fit: [145, 72],
+      //     align: 'left',
+      //   }
+      // );
+      doc.image(
+  logoPath,
+  doc.page.margins.left,
+  startY,
+  {
+    fit: [125, 60],
+    align: 'left',
+    valign: 'top',
+  }
+);
+    } catch (error) {
+      console.error(
+        'Unable to add PDF logo:',
+        error.message
+      );
+    }
+  } else {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(16)
+      .text(
+        SHOP.name,
+        doc.page.margins.left,
+        startY
+      );
+  }
+
+  // const shopX = 310;
+  const shopX = 300;
+const shopWidth = 250;
+
+doc
+  .font('Helvetica-Bold')
+  .fontSize(10)
+  .fillColor('#111111')
+  .text(
+    SHOP.name,
+    shopX,
+    startY,
+    {
+      width: shopWidth,
+    }
+  );
+
+doc
+  .font('Helvetica')
+  .fontSize(8.5)
+  .text(
+    SHOP.address,
+    shopX,
+    startY + 18,
+    {
+      width: shopWidth,
+      lineGap: 2,
+    }
+  );
+
+// GSTIN already address lo unte malli print cheyyakudadhu
+if (
+  SHOP.gstin &&
+  !String(SHOP.address || '')
+    .toUpperCase()
+    .includes(
+      String(SHOP.gstin).toUpperCase()
+    )
+) {
+  doc.text(
+    `GSTIN: ${SHOP.gstin}`,
+    shopX,
+    startY + 62,
+    {
+      width: shopWidth,
+    }
+  );
+}
+
+doc.y = startY + 110;
+  // doc
+  //   .font('Helvetica-Bold')
+  //   .fontSize(10)
+  //   .fillColor('#111111')
+  //   .text(
+  //     SHOP.name,
+  //     shopX,
+  //     startY,
+  //     {
+  //       width: 240,
+  //     }
+  //   );
+
+  // doc
+  //   .font('Helvetica')
+  //   .fontSize(8.5)
+  //   .text(
+  //     SHOP.address,
+  //     shopX,
+  //     startY + 18,
+  //     {
+  //       width: 240,
+  //       lineGap: 2,
+  //     }
+  //   );
+
+  // doc.text(
+  //   `GSTIN: ${SHOP.gstin}`,
+  //   shopX,
+  //   startY + 58,
+  //   {
+  //     width: 240,
+  //   }
+  // );
+
+  // doc.y =
+  //   startY + 105;
+
+  // doc
+  //   .font('Helvetica-Bold')
+  //   .fontSize(20)
+  //   .fillColor('#111111')
+  //   .text(
+  //     isInvoice
+  //       ? 'INVOICE'
+  //       : 'PACKING SLIP'
+  //   );
+  doc
+  .font('Helvetica-Bold')
+  .fontSize(20)
+  .fillColor('#111111')
+  .text(
+    isInvoice
+      ? 'INVOICE'
+      : 'PACKING SLIP',
+    44,
+    doc.y,
+    {
+      width: 250,
+      align: 'left',
+    }
+  );
+
+  doc.moveDown(1);
+}
+
+function drawAddressAndMeta(
+  doc,
+  order,
+  type
+) {
+  const isInvoice =
+    type === 'invoice';
+
+  const billing =
+    order.billing || {};
+
+  const shipping =
+    order.shipping || billing;
+
+  const address =
+    isInvoice
+      ? billing
+      : shipping;
+
+  const startY = doc.y;
+
+  /*
+   * LEFT SIDE - CUSTOMER ADDRESS
+   */
+  const addressX = 44;
+  const addressWidth = 245;
+
+  const lines =
+    addressLines(address);
+
+  doc
+    .font('Helvetica')
+    .fontSize(9.5)
+    .fillColor('#111111');
+
+  let addressY = startY;
+
+  for (const line of lines) {
+    doc.text(
+      String(line),
+      addressX,
+      addressY,
+      {
+        width: addressWidth,
+        lineGap: 2,
+      }
+    );
+
+    addressY =
+      doc.y + 4;
+  }
+
+  /*
+   * RIGHT SIDE - ORDER / INVOICE DETAILS
+   */
+  const metaX = 310;
+  const labelWidth = 105;
+  const valueX = 420;
+  const valueWidth = 130;
+
+  let metaY = startY;
+
+  if (
+    isInvoice &&
+    order.institution_name
+  ) {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9.5)
+      .fillColor('#111111')
+      .text(
+        String(
+          order.institution_name
+        ).toUpperCase(),
+        metaX,
+        metaY,
+        {
+          width: 240,
+        }
+      );
+
+    metaY =
+      doc.y + 8;
+  }
+
+  const metaRows =
+    isInvoice
+      ? [
+          [
+            'Invoice Number',
+            order.invoice_number || '—',
+          ],
+          [
+            'Invoice Date',
+            pdfDate(
+              order.invoice_date
+            ),
+          ],
+          [
+            'Order Number',
+            order.id || '—',
+          ],
+          [
+            'Order Date',
+            pdfDate(
+              order.date_created_gmt
+            ),
+          ],
+          [
+            'Payment Method',
+            order.payment_method_title ||
+              order.payment_method ||
+              '—',
+          ],
+        ]
+      : [
+          [
+            'Order Number',
+            order.id || '—',
+          ],
+          [
+            'Order Date',
+            pdfDate(
+              order.date_created_gmt
+            ),
+          ],
+          [
+            'Shipping Method',
+            order.shipping_label ||
+              'Flat rate',
+          ],
+        ];
+
+  for (
+    const [label, value]
+    of metaRows
+  ) {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9);
+
+    const labelHeight =
+      doc.heightOfString(
+        `${label}:`,
+        {
+          width: labelWidth,
+        }
+      );
+
+    doc
+      .font('Helvetica')
+      .fontSize(9);
+
+    const valueHeight =
+      doc.heightOfString(
+        String(value ?? '—'),
+        {
+          width: valueWidth,
+        }
+      );
+
+    const rowHeight =
+      Math.max(
+        labelHeight,
+        valueHeight,
+        13
+      );
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .fillColor('#111111')
+      .text(
+        `${label}:`,
+        metaX,
+        metaY,
+        {
+          width: labelWidth,
+        }
+      );
+
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor('#111111')
+      .text(
+        String(value ?? '—'),
+        valueX,
+        metaY,
+        {
+          width: valueWidth,
+          lineGap: 1,
+        }
+      );
+
+    metaY +=
+      rowHeight + 7;
+  }
+
+  /*
+   * Product table starts only
+   * after both columns finish.
+   */
+  doc.y =
+    Math.max(
+      addressY,
+      metaY
+    ) + 18;
+}
+// function drawAddressAndMeta(
+//   doc,
+//   order,
+//   type
+// ) {
+//   const isInvoice =
+//     type === 'invoice';
+
+//   const billing =
+//     order.billing || {};
+
+//   const shipping =
+//     order.shipping ||
+//     billing;
+
+//   const address =
+//     isInvoice
+//       ? billing
+//       : shipping;
+
+//   const startY = doc.y;
+
+//   const lines =
+//     addressLines(address);
+
+//   doc
+//     .font('Helvetica')
+//     .fontSize(9.5)
+//     .fillColor('#111111');
+
+//   let addressY =
+//     startY;
+
+//   for (const line of lines) {
+//     doc.text(
+//       String(line),
+//       44,
+//       addressY,
+//       {
+//         width: 240,
+//       }
+//     );
+
+//     addressY += 16;
+//   }
+
+//   const metaX = 320;
+
+//   let metaY =
+//     startY;
+
+//   if (
+//     isInvoice &&
+//     order.institution_name
+//   ) {
+//     doc
+//       .font('Helvetica-Bold')
+//       .fontSize(9.5)
+//       .text(
+//         String(
+//           order.institution_name
+//         ).toUpperCase(),
+//         metaX,
+//         metaY,
+//         {
+//           width: 230,
+//         }
+//       );
+
+//     metaY += 19;
+//   }
+
+//   const metaRows =
+//     isInvoice
+//       ? [
+//           [
+//             'Invoice Number',
+//             order.invoice_number ||
+//               '—',
+//           ],
+//           [
+//             'Invoice Date',
+//             pdfDate(
+//               order.invoice_date
+//             ),
+//           ],
+//           [
+//             'Order Number',
+//             order.id,
+//           ],
+//           [
+//             'Order Date',
+//             pdfDate(
+//               order.date_created_gmt
+//             ),
+//           ],
+//           [
+//             'Payment Method',
+//             order.payment_method_title ||
+//               order.payment_method ||
+//               '—',
+//           ],
+//         ]
+//       : [
+//           [
+//             'Order Number',
+//             order.id,
+//           ],
+//           [
+//             'Order Date',
+//             pdfDate(
+//               order.date_created_gmt
+//             ),
+//           ],
+//           [
+//             'Shipping Method',
+//             order.shipping_label ||
+//               'Flat rate',
+//           ],
+//         ];
+
+//   for (
+//     const [label, value]
+//     of metaRows
+//   ) {
+//     doc
+//       .font('Helvetica-Bold')
+//       .fontSize(9)
+//       .text(
+//         `${label}:`,
+//         metaX,
+//         metaY,
+//         {
+//           width: 95,
+//           continued: true,
+//         }
+//       )
+//       .font('Helvetica')
+//       .text(
+//         ` ${value}`,
+//         {
+//           width: 135,
+//         }
+//       );
+
+//     metaY += 17;
+//   }
+
+//   doc.y =
+//     Math.max(
+//       addressY,
+//       metaY
+//     ) + 20;
+// }
+
+function drawItemsHeader(
+  doc,
+  type
+) {
+  const isInvoice =
+    type === 'invoice';
+
+  ensurePdfSpace(
+    doc,
+    70
+  );
+
+  const y = doc.y;
+
+  doc
+    .rect(
+      44,
+      y,
+      507,
+      28
+    )
+    .fill('#000000');
+
+  doc
+    .fillColor('#ffffff')
+    .font('Helvetica-Bold')
+    .fontSize(9);
+
+  doc.text(
+    'Product',
+    55,
+    y + 9,
+    {
+      width:
+        isInvoice
+          ? 290
+          : 390,
+    }
+  );
+doc.text(
+  'Quantity',
+  isInvoice
+    ? 365
+    : 445,
+  y + 9,
+  {
+    width: 60,
+    align: 'right',
+  }
+);
+
+if (isInvoice) {
+  doc.text(
+    'Price',
+    455,
+    y + 9,
+    {
+      width: 85,
+      align: 'right',
+    }
+  );
+}
+  // doc.text(
+  //   'Quantity',
+  //   isInvoice
+  //     ? 350
+  //     : 445,
+  //   y + 9,
+  //   {
+  //     width: 70,
+  //     align: 'right',
+  //   }
+  // );
+
+  // if (isInvoice) {
+  //   doc.text(
+  //     'Price',
+  //     445,
+  //     y + 9,
+  //     {
+  //       width: 95,
+  //       align: 'right',
+  //     }
+  //   );
+  // }
+
+  doc
+    .fillColor('#111111');
+
+  doc.y =
+    y + 35;
+}
+
+function drawOrderItems(
+  doc,
+  order,
+  type
+) {
+  const isInvoice =
+    type === 'invoice';
+
+  drawItemsHeader(
+    doc,
+    type
+  );
+
+  const items =
+    order.line_items || [];
+
+  for (const item of items) {
+    ensurePdfSpace(
+      doc,
+      65
+    );
+
+
+    if (
+      doc.y <
+      doc.page.margins.top +
+        20
+    ) {
+      drawItemsHeader(
+        doc,
+        type
+      );
+    }
+
+    const qty =
+      Number(item.qty) || 0;
+
+    const total =
+      Number(
+        item.line_total
+      ) || 0;
+
+    const unit =
+      qty > 0
+        ? total / qty
+        : total;
+
+    const rowY =
+      doc.y;
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .fillColor('#111111')
+      .text(
+        item.order_item_name ||
+          'Product',
+        55,
+        rowY,
+        {
+          width:
+            isInvoice
+              ? 280
+              : 370,
+        }
+      );
+
+    let detailY =
+      doc.y + 2;
+
+    if (item.size) {
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor('#444444')
+        .text(
+          `Size: ${item.size}`,
+          55,
+          detailY,
+          {
+            width: 280,
+          }
+        );
+
+      detailY =
+        doc.y + 2;
+    }
+
+    const detailParts = [];
+
+    if (item.sku) {
+      detailParts.push(
+        `SKU: ${item.sku}`
+      );
+    }
+
+    if (item.hsn) {
+      detailParts.push(
+        `HSN: ${item.hsn}`
+      );
+    }
+
+    if (
+      detailParts.length
+    ) {
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor('#444444')
+        .text(
+          detailParts.join(
+            ' | '
+          ),
+          55,
+          detailY,
+          {
+            width: 280,
+          }
+        );
+    }
+
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor('#111111')
+      .text(
+        String(qty),
+        isInvoice
+          ? 350
+          : 445,
+        rowY,
+        {
+          width: 60,
+          align: 'right',
+        }
+      );
+
+    // if (isInvoice) {
+    //   doc.text(
+    //     moneyText(unit),
+    //     445,
+    //     rowY,
+    //     {
+    //       width: 95,
+    //       align: 'right',
+    //     }
+    //   );
+    // }
+    if (isInvoice) {
+  doc.text(
+    moneyText(unit),
+    455,
+    rowY,
+    {
+      width: 85,
+      align: 'right',
+    }
+  );
+}
+
+    const rowBottom =
+      Math.max(
+        doc.y,
+        detailY + 20,
+        rowY + 28
+      );
+
+    doc
+      .moveTo(
+        44,
+        rowBottom
+      )
+      .lineTo(
+        551,
+        rowBottom
+      )
+      .strokeColor(
+        '#d9d9d9'
+      )
+      .stroke();
+
+    doc
+      .strokeColor(
+        '#000000'
+      );
+
+    doc.y =
+      rowBottom + 10;
+  }
+}
+
+function drawInvoiceTotals(
+  doc,
+  order
+) {
+  ensurePdfSpace(
+    doc,
+    150
+  );
+
+  doc.moveDown(1);
+
+  const x = 330;
+
+  const valueX = 445;
+
+  let y = doc.y;
+
+  const row = (
+    label,
+    value,
+    bold = false
+  ) => {
+    doc
+      .font(
+        bold
+          ? 'Helvetica-Bold'
+          : 'Helvetica'
+      )
+      .fontSize(
+        bold
+          ? 10.5
+          : 9
+      )
+      .fillColor(
+        '#111111'
+      )
+      .text(
+        label,
+        x,
+        y,
+        {
+          width: 105,
+        }
+      );
+
+    doc.text(
+      value,
+      valueX,
+      y,
+      {
+        width: 95,
+        align: 'right',
+      }
+    );
+
+    y +=
+      bold
+        ? 24
+        : 19;
+  };
+
+  row(
+    'Subtotal',
+    moneyText(
+      order.subtotal
+    )
+  );
+
+  row(
+    'Shipping',
+    `${moneyText(
+      order.shipping_cost
+    )}`
+  );
+
+  doc
+    .moveTo(
+      x,
+      y
+    )
+    .lineTo(
+      540,
+      y
+    )
+    .stroke();
+
+  y += 9;
+
+  row(
+    'Total',
+    moneyText(
+      order.total_amount
+    ),
+    true
+  );
+
+  const taxParts =
+    (order.taxes || [])
+      .filter(
+        (tax) =>
+          Number(tax.amount) >
+          0
+      )
+      .map((tax) => {
+        const rate =
+          tax.rate
+            ? `${tax.rate}% `
+            : '';
+
+        const label =
+          String(
+            tax.label || ''
+          ).replace(
+            /^IN-\d+(?:\.\d+)?%\s*/i,
+            ''
+          );
+
+        return `${moneyText(
+          tax.amount
+        )} ${rate}${label}`;
+      });
+
+  if (taxParts.length) {
+    doc
+      .font('Helvetica')
+      .fontSize(7.5)
+      .fillColor('#444444')
+      .text(
+        `(includes ${taxParts.join(
+          ', '
+        )})`,
+        x,
+        y,
+        {
+          width: 210,
+          align: 'right',
+        }
+      );
+
+    y =
+      doc.y + 8;
+  }
+
+  doc.y =
+    y;
+}
+
+function drawPdfFooter(
+  doc
+) {
+  ensurePdfSpace(
+    doc,
+    70
+  );
+
+  doc.moveDown(2);
+
+  const y =
+    doc.y;
+
+  doc
+    .moveTo(
+      44,
+      y
+    )
+    .lineTo(
+      551,
+      y
+    )
+    .strokeColor(
+      '#bbbbbb'
+    )
+    .stroke();
+
+  doc
+    .font('Helvetica')
+    .fontSize(8.5)
+    .fillColor('#333333')
+    .text(
+      SHOP.footer,
+      44,
+      y + 15,
+      {
+        width: 507,
+        align: 'center',
+      }
+    );
+
+  doc
+    .strokeColor(
+      '#000000'
+    )
+    .fillColor(
+      '#111111'
+    );
+
+  doc.y =
+    y + 45;
+}
+
+async function addOrderToPdf(
+  doc,
+  rawOrder,
+  type
+) {
+  await loadShopSettings();
+
+  const order =
+    await enrichOrder(
+      rawOrder
+    );
+
+  drawPdfHeader(
+    doc,
+    order,
+    type
+  );
+
+  drawAddressAndMeta(
+    doc,
+    order,
+    type
+  );
+
+  drawOrderItems(
+    doc,
+    order,
+    type
+  );
+
+  if (
+    type === 'invoice'
+  ) {
+    drawInvoiceTotals(
+      doc,
+      order
+    );
+  }
+
+  drawPdfFooter(
+    doc
+  );
+
+  return order;
+}
+
+async function createOrderPdfBuffer(
+  rawOrder,
+  type
+) {
+  const doc =
+    createPdfDocument();
+
+  const promise =
+    collectPdfBuffer(
+      doc
+    );
+
+  const order =
+    await addOrderToPdf(
+      doc,
+      rawOrder,
+      type
+    );
+
+  doc.end();
+
+  const pdf =
+    await promise;
+
+  return {
+    pdf,
+    order,
+  };
+}
+
+async function createCombinedPdfBuffer(
+  orderIds,
+  type
+) {
+  const doc =
+    createPdfDocument();
+
+  const promise =
+    collectPdfBuffer(
+      doc
+    );
+
+  for (
+    let i = 0;
+    i < orderIds.length;
+    i++
+  ) {
+    if (i > 0) {
+      doc.addPage();
+    }
+
+    const order =
+      await orderService.getById(
+        orderIds[i]
+      );
+
+    await addOrderToPdf(
+      doc,
+      order,
+      type
+    );
+  }
+
+  doc.end();
+
+  return promise;
 }
 
 function buildListQuery(req) {
@@ -920,14 +2156,50 @@ async function resolveOrderIds(input = {}) {
 //   return rows.map((r) => r.id);
 // }
 
-async function buildPdfForOrder(orderId, type) {
-  const order = await orderService.getById(orderId);
-  const html = await buildDocumentHtml(order, type);
-  const pdf = toBuffer(await htmlToPdfBuffer(html));
-  const enriched = await enrichOrder(order);
-  const num = type === 'invoice' ? enriched.invoice_number : enriched.packing_slip_number;
-  const filename = `${type === 'invoice' ? 'invoice' : 'packing-slip'}-${num}.pdf`;
-  return { pdf, filename, order: enriched };
+// async function buildPdfForOrder(orderId, type) {
+//   const order = await orderService.getById(orderId);
+//   const html = await buildDocumentHtml(order, type);
+//   const pdf = toBuffer(await htmlToPdfBuffer(html));
+//   const enriched = await enrichOrder(order);
+//   const num = type === 'invoice' ? enriched.invoice_number : enriched.packing_slip_number;
+//   const filename = `${type === 'invoice' ? 'invoice' : 'packing-slip'}-${num}.pdf`;
+//   return { pdf, filename, order: enriched };
+// }
+async function buildPdfForOrder(
+  orderId,
+  type
+) {
+  const rawOrder =
+    await orderService.getById(
+      orderId
+    );
+
+  const {
+    pdf,
+    order,
+  } =
+    await createOrderPdfBuffer(
+      rawOrder,
+      type
+    );
+
+  const num =
+    type === 'invoice'
+      ? order.invoice_number
+      : order.packing_slip_number;
+
+  const filename =
+    `${
+      type === 'invoice'
+        ? 'invoice'
+        : 'packing-slip'
+    }-${num}.pdf`;
+
+  return {
+    pdf,
+    filename,
+    order,
+  };
 }
 
 // async function buildDownload(orderIds, type) {
@@ -974,16 +2246,22 @@ async function buildDownload(
   }
 
   // Multiple orders -> ONE combined PDF
-  const html =
-    await buildCombinedDocumentHtml(
-      orderIds,
-      type
-    );
+  // const html =
+  //   await buildCombinedDocumentHtml(
+  //     orderIds,
+  //     type
+  //   );
 
-  const pdf =
-    toBuffer(
-      await htmlToPdfBuffer(html)
-    );
+  // const pdf =
+  //   toBuffer(
+  //     await htmlToPdfBuffer(html)
+  //   );
+  // Multiple orders -> ONE combined PDF
+const pdf =
+  await createCombinedPdfBuffer(
+    orderIds,
+    type
+  );
 
   const label =
     type === 'invoice'
@@ -1330,38 +2608,46 @@ async function sendDailyAdminReports(
    * PDF 1 - ALL INVOICES
    * =====================================
    */
+    const invoicesPdf =
+  await createCombinedPdfBuffer(
+    orderIds,
+    'invoice'
+  );
+  // const invoicesHtml =
+  //   await buildCombinedDocumentHtml(
+  //     orderIds,
+  //     'invoice'
+  //   );
 
-  const invoicesHtml =
-    await buildCombinedDocumentHtml(
-      orderIds,
-      'invoice'
-    );
-
-  const invoicesPdf =
-    toBuffer(
-      await htmlToPdfBuffer(
-        invoicesHtml
-      )
-    );
+  // const invoicesPdf =
+  //   toBuffer(
+  //     await htmlToPdfBuffer(
+  //       invoicesHtml
+  //     )
+  //   );
 
   /*
    * =====================================
    * PDF 2 - ALL PACKING SLIPS
    * =====================================
    */
+    const packingSlipsPdf =
+  await createCombinedPdfBuffer(
+    orderIds,
+    'packing-slip'
+  );
+  // const packingSlipsHtml =
+  //   await buildCombinedDocumentHtml(
+  //     orderIds,
+  //     'packing-slip'
+  //   );
 
-  const packingSlipsHtml =
-    await buildCombinedDocumentHtml(
-      orderIds,
-      'packing-slip'
-    );
-
-  const packingSlipsPdf =
-    toBuffer(
-      await htmlToPdfBuffer(
-        packingSlipsHtml
-      )
-    );
+  // const packingSlipsPdf =
+  //   toBuffer(
+  //     await htmlToPdfBuffer(
+  //       packingSlipsHtml
+  //     )
+  //   );
 
   /*
    * Safe filename
@@ -1575,6 +2861,7 @@ module.exports = {
 
 
 
+
 // const pool = require('../config/db');
 // const P = require('../config/prefix');
 // const { parseList, listResponse } = require('../utils/listParams');
@@ -1765,25 +3052,53 @@ module.exports = {
 // }
 
 // function getLogoDataUri() {
-//   if (logoDataUriCache) return logoDataUriCache;
-
-//   const candidates = [
-//     path.join(__dirname, '../../assets/brassleaf-logo.png'),
-//     path.join(__dirname, '../../assets/brassleaf-logo.svg'),
-//     path.join(__dirname, '../../../../brassleaf-globaledge-userside/public/logo.svg'),
-//   ];
-
-//   for (const file of candidates) {
-//     if (!fs.existsSync(file)) continue;
-//     const ext = path.extname(file).slice(1).toLowerCase();
-//     const mime = ext === 'svg' ? 'image/svg+xml' : 'image/png';
-//     logoDataUriCache = `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+//   if (logoDataUriCache) {
 //     return logoDataUriCache;
 //   }
 
-//   logoDataUriCache = '';
+//   const logoPath = path.join(
+//     __dirname,
+//     '../../../frontend/public/logo.jpg'
+//   );
+
+//   if (!fs.existsSync(logoPath)) {
+//     console.error(
+//       'PDF logo not found:',
+//       logoPath
+//     );
+
+//     return '';
+//   }
+
+//   const base64 =
+//     fs.readFileSync(logoPath)
+//       .toString('base64');
+
+//   logoDataUriCache =
+//     `data:image/jpeg;base64,${base64}`;
+
 //   return logoDataUriCache;
 // }
+// // function getLogoDataUri() {
+// //   if (logoDataUriCache) return logoDataUriCache;
+
+// //   const candidates = [
+// //     path.join(__dirname, '../../assets/brassleaf-logo.png'),
+// //     path.join(__dirname, '../../assets/brassleaf-logo.svg'),
+// //     path.join(__dirname, '../../../../brassleaf-globaledge-userside/public/logo.svg'),
+// //   ];
+
+// //   for (const file of candidates) {
+// //     if (!fs.existsSync(file)) continue;
+// //     const ext = path.extname(file).slice(1).toLowerCase();
+// //     const mime = ext === 'svg' ? 'image/svg+xml' : 'image/png';
+// //     logoDataUriCache = `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+// //     return logoDataUriCache;
+// //   }
+
+// //   logoDataUriCache = '';
+// //   return logoDataUriCache;
+// // }
 
 // function documentStyles() {
 //   return `
@@ -1798,20 +3113,28 @@ module.exports = {
 //   }
 //   .page-break { page-break-after: always; break-after: page; height: 0; }
 //   .top-row {
-//     display: flex;
-//     justify-content: space-between;
-//     align-items: flex-start;
-//     gap: 28px;
-//     margin-bottom: 32px;
-//   }
-//   .logo-img { width: 150px; height: auto; display: block; }
-//   .shop-block {
-//     text-align: right;
-//     font-size: 12px;
-//     color: #222;
-//     line-height: 1.55;
-//     max-width: 340px;
-//   }
+//   display: flex;
+//   justify-content: space-between;
+//   align-items: flex-start;
+//   gap: 28px;
+//   margin-bottom: 42px;
+// }
+
+// .logo-img {
+//   width: 145px;
+//   height: 72px;
+//   object-fit: contain;
+//   object-position: left top;
+//   display: block;
+// }
+
+// .shop-block {
+//   text-align: left;
+//   font-size: 12px;
+//   color: #222;
+//   line-height: 1.55;
+//   width: 280px;
+// }
 //   .shop-name { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
 //   .title {
 //     font-size: 24px;
@@ -1976,9 +3299,18 @@ module.exports = {
 //        </div>`
 //     : '';
 
-//   const logoHtml = logoUri
-//     ? `<img class="logo-img" src="${logoUri}" alt="Brass Leaf"/>`
-//     : `<div style="width:150px;height:60px;background:#243346;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">Brass Leaf</div>`;
+//     const logoHtml = logoUri
+//   ? `
+//       <img
+//         class="logo-img"
+//         src="${logoUri}"
+//         alt="Brass Leaf"
+//       />
+//     `
+//   : '';
+//   // const logoHtml = logoUri
+//   //   ? `<img class="logo-img" src="${logoUri}" alt="Brass Leaf"/>`
+//   //   : `<div style="width:150px;height:60px;background:#243346;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">Brass Leaf</div>`;
 
 //   return `<section class="doc-section">
 //   <div class="top-row">
@@ -2020,21 +3352,86 @@ module.exports = {
 // <html><head><meta charset="utf-8"/>
 // <style>${documentStyles()}</style></head><body>${body}</body></html>`;
 // }
-
-// async function buildCombinedDailyHtml(orderIds) {
+// async function buildCombinedDailyHtml(
+//   orderIds
+// ) {
 //   const sections = [];
-//   for (const orderId of orderIds) {
-//     const order = await orderService.getById(orderId);
-//     sections.push(await buildDocumentBody(order, 'invoice'));
-//     sections.push('<div class="page-break"></div>');
-//     sections.push(await buildDocumentBody(order, 'packing-slip'));
-//     sections.push('<div class="page-break"></div>');
+
+//   for (
+//     let i = 0;
+//     i < orderIds.length;
+//     i++
+//   ) {
+//     const orderId =
+//       orderIds[i];
+
+//     const order =
+//       await orderService.getById(
+//         orderId
+//       );
+
+//     // Invoice
+//     sections.push(
+//       await buildDocumentBody(
+//         order,
+//         'invoice'
+//       )
+//     );
+
+//     // Packing slip starts new page
+//     sections.push(
+//       '<div class="page-break"></div>'
+//     );
+
+//     // Packing slip
+//     sections.push(
+//       await buildDocumentBody(
+//         order,
+//         'packing-slip'
+//       )
+//     );
+
+//     // Next order starts new page,
+//     // but don't add blank page at end
+//     if (
+//       i <
+//       orderIds.length - 1
+//     ) {
+//       sections.push(
+//         '<div class="page-break"></div>'
+//       );
+//     }
 //   }
 
 //   return `<!DOCTYPE html>
-// <html><head><meta charset="utf-8"/>
-// <style>${documentStyles()}</style></head><body>${sections.join('\n')}</body></html>`;
+// <html>
+// <head>
+//   <meta charset="utf-8"/>
+
+//   <style>
+//     ${documentStyles()}
+//   </style>
+// </head>
+
+// <body>
+//   ${sections.join('\n')}
+// </body>
+// </html>`;
 // }
+// // async function buildCombinedDailyHtml(orderIds) {
+// //   const sections = [];
+// //   for (const orderId of orderIds) {
+// //     const order = await orderService.getById(orderId);
+// //     sections.push(await buildDocumentBody(order, 'invoice'));
+// //     sections.push('<div class="page-break"></div>');
+// //     sections.push(await buildDocumentBody(order, 'packing-slip'));
+// //     sections.push('<div class="page-break"></div>');
+// //   }
+
+// //   return `<!DOCTYPE html>
+// // <html><head><meta charset="utf-8"/>
+// // <style>${documentStyles()}</style></head><body>${sections.join('\n')}</body></html>`;
+// // }
 
 // function parseHsn(name, sku) {
 //   const fromName = String(name || '').match(/HSN\s*:\s*(\d+)/i);
@@ -2128,7 +3525,14 @@ module.exports = {
 //   const orderIds = parseIdList(req.query.order_ids);
 //   const range = resolveDateRange(req.query);
 //   const params = [];
-//   let where = `o.type = 'shop_order'`;
+//   // let where = `o.type = 'shop_order'`;
+//   let where = `
+//   o.type = 'shop_order'
+//   AND o.status IN (
+//     'wc-processing',
+//     'wc-completed'
+//   )
+// `;
 
 //   if (customerIds.length) {
 //     where += ` AND o.customer_id IN (${customerIds.map(() => '?').join(',')})`;
@@ -2230,37 +3634,155 @@ module.exports = {
 // }
 
 // async function resolveOrderIds(input = {}) {
-//   const orderIds = parseIdList(input.order_ids);
-//   const customerIds = parseIdList(input.customer_ids);
-//   if (orderIds.length) return [...new Set(orderIds)];
+//   const orderIds =
+//     parseIdList(input.order_ids);
+
+//   const customerIds =
+//     parseIdList(input.customer_ids);
+
+//   /*
+//    * IMPORTANT:
+//    * When specific report rows are selected,
+//    * use those exact order IDs.
+//    *
+//    * Reports list already contains only
+//    * processing/completed orders.
+//    */
+//   if (orderIds.length) {
+//     return [...new Set(orderIds)];
+//   }
 
 //   const params = [];
-//   let where = `o.type = 'shop_order'`;
-//   const range = resolveDateRange(input);
+
+//   let where = `
+//     o.type = 'shop_order'
+//     AND o.status IN (
+//       'wc-processing',
+//       'wc-completed'
+//     )
+//   `;
+
+//   const range =
+//     resolveDateRange(input);
 
 //   if (customerIds.length) {
-//     where += ` AND o.customer_id IN (${customerIds.map(() => '?').join(',')})`;
+//     where += `
+//       AND o.customer_id IN (
+//         ${customerIds
+//           .map(() => '?')
+//           .join(',')}
+//       )
+//     `;
+
 //     params.push(...customerIds);
 //   }
+
 //   if (range.start && range.end) {
-//     where += ` AND o.date_created_gmt >= ? AND o.date_created_gmt <= ?`;
-//     params.push(range.start, range.end);
+//     where += `
+//       AND o.date_created_gmt >= ?
+//       AND o.date_created_gmt <= ?
+//     `;
+
+//     params.push(
+//       range.start,
+//       range.end
+//     );
 //   }
 
 //   const from = `
 //     FROM ${P}wc_orders o
-//     LEFT JOIN ${P}wc_order_addresses a ON a.order_id = o.id AND a.address_type = 'billing'
-//     LEFT JOIN ${P}wcpdf_invoice_number inv ON inv.order_id = o.id
-//     LEFT JOIN ${P}wc_orders_meta invm ON invm.order_id = o.id AND invm.meta_key = '_wcpdf_invoice_number'
-//     LEFT JOIN ${P}wc_orders_meta invd ON invd.order_id = o.id AND invd.meta_key = '_wcpdf_invoice_date_formatted'
-//     LEFT JOIN ${P}wc_customer_lookup cl ON cl.user_id = o.customer_id`;
 
-//   const [rows] = await pool.query(
-//     `SELECT DISTINCT o.id ${from} WHERE ${where} ORDER BY o.date_created_gmt DESC`,
-//     params
+//     LEFT JOIN ${P}wc_order_addresses a
+//       ON a.order_id = o.id
+//       AND a.address_type = 'billing'
+
+//     LEFT JOIN ${P}wcpdf_invoice_number inv
+//       ON inv.order_id = o.id
+
+//     LEFT JOIN ${P}wc_orders_meta invm
+//       ON invm.order_id = o.id
+//       AND invm.meta_key =
+//         '_wcpdf_invoice_number'
+
+//     LEFT JOIN ${P}wc_orders_meta invd
+//       ON invd.order_id = o.id
+//       AND invd.meta_key =
+//         '_wcpdf_invoice_date_formatted'
+
+//     LEFT JOIN ${P}wc_customer_lookup cl
+//       ON cl.user_id = o.customer_id
+//   `;
+
+//   const [rows] =
+//     await pool.query(
+//       `
+//         SELECT DISTINCT
+//           o.id
+
+//         ${from}
+
+//         WHERE ${where}
+
+//         ORDER BY
+//           o.date_created_gmt DESC
+//       `,
+//       params
+//     );
+
+//   return rows.map(
+//     (r) => r.id
 //   );
-//   return rows.map((r) => r.id);
 // }
+// // async function resolveOrderIds(input = {}) {
+// //   const orderIds = parseIdList(input.order_ids);
+// //   const customerIds = parseIdList(input.customer_ids);
+// //   // if (orderIds.length) return [...new Set(orderIds)];
+
+// //   const params = [];
+// //   // let where = `o.type = 'shop_order'`;
+// //   let where = `
+// //   o.type = 'shop_order'
+// //   AND o.status IN (
+// //     'wc-processing',
+// //     'wc-completed'
+// //   )
+// // `;
+// //   const range = resolveDateRange(input);
+// //    if (orderIds.length) {
+// //     where += `
+// //       AND o.id IN (
+// //         ${orderIds
+// //           .map(() => '?')
+// //           .join(',')}
+// //       )
+// //     `;
+
+// //     params.push(...orderIds);
+// //   }
+
+// //   if (customerIds.length) {
+// //     where += ` AND o.customer_id IN (${customerIds.map(() => '?').join(',')})`;
+// //     params.push(...customerIds);
+// //   }
+// //   if (range.start && range.end) {
+// //     where += ` AND o.date_created_gmt >= ? AND o.date_created_gmt <= ?`;
+// //     params.push(range.start, range.end);
+// //   }
+
+// //   const from = `
+// //     FROM ${P}wc_orders o
+// //     LEFT JOIN ${P}wc_order_addresses a ON a.order_id = o.id AND a.address_type = 'billing'
+// //     LEFT JOIN ${P}wcpdf_invoice_number inv ON inv.order_id = o.id
+// //     LEFT JOIN ${P}wc_orders_meta invm ON invm.order_id = o.id AND invm.meta_key = '_wcpdf_invoice_number'
+// //     LEFT JOIN ${P}wc_orders_meta invd ON invd.order_id = o.id AND invd.meta_key = '_wcpdf_invoice_date_formatted'
+// //     LEFT JOIN ${P}wc_customer_lookup cl ON cl.user_id = o.customer_id`;
+
+// //   const [rows] = await pool.query(
+// //     `SELECT DISTINCT o.id ${from} WHERE ${where} ORDER BY o.date_created_gmt DESC`,
+// //     params
+// //   );
+// //   return rows.map((r) => r.id);
+// // }
 
 // async function buildPdfForOrder(orderId, type) {
 //   const order = await orderService.getById(orderId);
@@ -2272,20 +3794,120 @@ module.exports = {
 //   return { pdf, filename, order: enriched };
 // }
 
-// async function buildDownload(orderIds, type) {
-//   if (!orderIds.length) throw httpError(400, 'No orders found for download');
+// // async function buildDownload(orderIds, type) {
+// //   if (!orderIds.length) throw httpError(400, 'No orders found for download');
 
+// //   if (orderIds.length === 1) {
+// //     const { pdf, filename } = await buildPdfForOrder(orderIds[0], type);
+// //     return { buffer: pdf, filename, contentType: 'application/pdf' };
+// //   }
+
+// //   const parts = [];
+// //   for (const orderId of orderIds) {
+// //     const { pdf, filename } = await buildPdfForOrder(orderId, type);
+// //     parts.push({ pdf, filename });
+// //   }
+// //   return { multiple: parts, contentType: 'application/zip' };
+// // }
+// async function buildDownload(
+//   orderIds,
+//   type
+// ) {
+//   if (!orderIds.length) {
+//     throw httpError(
+//       400,
+//       'No orders found for download'
+//     );
+//   }
+
+//   // Single order
 //   if (orderIds.length === 1) {
-//     const { pdf, filename } = await buildPdfForOrder(orderIds[0], type);
-//     return { buffer: pdf, filename, contentType: 'application/pdf' };
+//     const {
+//       pdf,
+//       filename,
+//     } = await buildPdfForOrder(
+//       orderIds[0],
+//       type
+//     );
+
+//     return {
+//       buffer: pdf,
+//       filename,
+//       contentType: 'application/pdf',
+//     };
 //   }
 
-//   const parts = [];
-//   for (const orderId of orderIds) {
-//     const { pdf, filename } = await buildPdfForOrder(orderId, type);
-//     parts.push({ pdf, filename });
+//   // Multiple orders -> ONE combined PDF
+//   const html =
+//     await buildCombinedDocumentHtml(
+//       orderIds,
+//       type
+//     );
+
+//   const pdf =
+//     toBuffer(
+//       await htmlToPdfBuffer(html)
+//     );
+
+//   const label =
+//     type === 'invoice'
+//       ? 'invoices'
+//       : 'packing-slips';
+
+//   const date =
+//     new Date()
+//       .toISOString()
+//       .slice(0, 10);
+
+//   return {
+//     buffer: pdf,
+//     filename:
+//       `brassleaf-${label}-${date}.pdf`,
+//     contentType: 'application/pdf',
+//   };
+// }
+
+// async function buildCombinedDocumentHtml(
+//   orderIds,
+//   type
+// ) {
+//   const sections = [];
+
+//   for (let i = 0; i < orderIds.length; i++) {
+//     const orderId = orderIds[i];
+
+//     const order =
+//       await orderService.getById(orderId);
+
+//     const body =
+//       await buildDocumentBody(
+//         order,
+//         type
+//       );
+
+//     sections.push(body);
+
+//     // Add page break only between orders.
+//     // No unnecessary blank final page.
+//     if (i < orderIds.length - 1) {
+//       sections.push(
+//         '<div class="page-break"></div>'
+//       );
+//     }
 //   }
-//   return { multiple: parts, contentType: 'application/zip' };
+
+//   return `<!DOCTYPE html>
+// <html>
+// <head>
+//   <meta charset="utf-8"/>
+//   <style>
+//     ${documentStyles()}
+//   </style>
+// </head>
+// <body>
+//   ${sections.join('\n')}
+// </body>
+// </html>`;
 // }
 
 // async function totalsForOrderIds(orderIds) {
@@ -2316,115 +3938,489 @@ module.exports = {
 //   return buildDownload(orderIds, type);
 // }
 
-// async function emailCustomerInvoices(req) {
-//   const input = {
-//     order_ids: req.body?.order_ids,
-//     customer_ids: req.body?.customer_ids,
-//     range: req.body?.range,
-//     date: req.body?.date,
-//     date_from: req.body?.date_from,
-//     date_to: req.body?.date_to,
-//   };
-//   const orderIds = await resolveOrderIds(input);
-//   if (!orderIds.length) throw httpError(400, 'No orders found to email');
+// async function sendOrderInvoiceToCustomer(
+//   orderId
+// ) {
+//   const {
+//     pdf,
+//     filename,
+//     order,
+//   } = await buildPdfForOrder(
+//     orderId,
+//     'invoice'
+//   );
 
-//   let sent = 0;
-//   for (const orderId of orderIds) {
-//     const { pdf, filename, order } = await buildPdfForOrder(orderId, 'invoice');
-//     const to = order.billing?.email || order.billing_email;
-//     if (!to) continue;
-//     await sendMail({
-//       to,
-//       subject: `Your BrassLeaf Invoice #${order.invoice_number}`,
-//       text: `Dear customer,\n\nPlease find attached your invoice for order #${order.id}.\n\nThank you,\nBrassLeaf`,
-//       attachments: [{ filename, content: pdf, contentType: 'application/pdf' }],
-//     });
-//     sent += 1;
+//   const to =
+//     order.billing?.email ||
+//     order.billing_email;
+
+//   if (!to) {
+//     throw httpError(
+//       400,
+//       `Customer email not found for order #${orderId}`
+//     );
 //   }
-//   if (!sent) throw httpError(400, 'No customer emails found for selected orders');
-//   return { sent, orderIds };
-// }
-
-// async function emailDailyAdmin(type, preset = 'yesterday') {
-//   const orderIds = await resolveOrderIds({ range: preset });
-//   if (!orderIds.length) return { sent: false, reason: 'no_orders', count: 0 };
-
-//   const attachments = [];
-//   for (const orderId of orderIds) {
-//     const { pdf, filename } = await buildPdfForOrder(orderId, type);
-//     attachments.push({ filename, content: pdf, contentType: 'application/pdf' });
-//   }
-
-//   const adminEmail = env.adminEmail;
-//   if (!adminEmail) throw httpError(500, 'ADMIN_EMAIL is not configured in backend .env');
-
-//   const range = resolveDateRange({ range: preset });
-//   const dayLabel = range.label || preset;
-//   const isInvoice = type === 'invoice';
-//   await sendMail({
-//     to: adminEmail,
-//     subject: `BrassLeaf Daily ${isInvoice ? 'Invoices' : 'Packing Slips'} — ${dayLabel}`,
-//     text: `Attached are ${attachments.length} ${isInvoice ? 'invoice' : 'packing slip'} PDF(s) for ${dayLabel}.`,
-//     attachments,
-//   });
-
-//   return { sent: true, count: attachments.length, type, dayLabel };
-// }
-
-// async function sendDailyAdminReports(scheduleInput = null) {
-//   const reportScheduleService = require('./reportScheduleService');
-//   const schedule = scheduleInput || (await reportScheduleService.getSchedule());
-
-//   const rangeKey = schedule.report_day === 'today' ? 'today' : 'yesterday';
-//   const orderIds = await resolveOrderIds({ range: rangeKey });
-
-//   if (!orderIds.length) {
-//     return { sent: false, reason: 'no_orders', count: 0, range: rangeKey };
-//   }
-
-//   const adminEmail = schedule.admin_email || env.adminEmail;
-//   if (!adminEmail) {
-//     throw httpError(500, 'Admin email is not configured for daily reports');
-//   }
-
-//   const range = resolveDateRange({ range: rangeKey });
-//   const dayLabel = range.label || (rangeKey === 'today' ? 'Today' : 'Yesterday');
-//   const totals = await totalsForOrderIds(orderIds);
-//   const html = await buildCombinedDailyHtml(orderIds);
-//   const pdf = toBuffer(await htmlToPdfBuffer(html));
-//   const safeLabel = dayLabel.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').toLowerCase();
-//   const filename = `brassleaf-daily-orders-${safeLabel || rangeKey}.pdf`;
 
 //   await sendMail({
-//     to: adminEmail,
-//     subject: `BrassLeaf - Daily Orders - ${dayLabel}`,
+//     to,
+
+//     subject:
+//       `Your BrassLeaf Invoice #${order.invoice_number}`,
+
 //     html: `
-//       <div style="font-family:Arial,sans-serif;color:#243346;line-height:1.6;">
-//         <p>Hello Admin,</p>
-//         <p>Please find attached the BrassLeaf daily orders document for <strong>${esc(dayLabel)}</strong>.</p>
-//         <p><strong>Total Orders:</strong> ${totals.order_count}<br/>
-//         <strong>Total Sales:</strong> ${formatMoney(totals.total_sales)}</p>
-//         <p>The attached PDF contains the invoice and packing slip for each order.</p>
-//         <p>Regards,<br/>BrassLeaf Admin</p>
+//       <div
+//         style="
+//           font-family: Arial, sans-serif;
+//           line-height: 1.6;
+//           color: #243346;
+//         "
+//       >
+//         <p>Dear Customer,</p>
+
+//         <p>
+//           Thank you for your BrassLeaf order.
+//         </p>
+
+//         <p>
+//           Your invoice for
+//           <strong>Order #${order.id}</strong>
+//           is attached to this email.
+//         </p>
+
+//         <p>
+//           Regards,<br/>
+//           BrassLeaf
+//         </p>
 //       </div>
 //     `,
+
 //     text:
-//       `Hello Admin,\n\nPlease find attached the BrassLeaf daily orders document for ${dayLabel}.\n\n` +
-//       `Total Orders: ${totals.order_count}\nTotal Sales: ${formatMoney(totals.total_sales)}\n\n` +
-//       `The attached PDF contains the invoice and packing slip for each order.\n\nRegards,\nBrassLeaf Admin`,
-//     attachments: [{ filename, content: pdf, contentType: 'application/pdf' }],
+//       `Dear Customer,\n\n` +
+//       `Thank you for your BrassLeaf order.\n` +
+//       `Please find attached your invoice for order #${order.id}.\n\n` +
+//       `Regards,\nBrassLeaf`,
+
+//     attachments: [
+//       {
+//         filename,
+//         content: pdf,
+//         contentType:
+//           'application/pdf',
+//       },
+//     ],
 //   });
 
 //   return {
 //     sent: true,
-//     count: orderIds.length,
-//     total_sales: totals.total_sales,
-//     dayLabel,
-//     range: rangeKey,
-//     orderIds,
-//     filename,
+//     orderId,
+//     email: to,
 //   };
 // }
+
+// async function emailCustomerInvoices(req) {
+//   const input = {
+//     order_ids:
+//       req.body?.order_ids,
+
+//     customer_ids:
+//       req.body?.customer_ids,
+
+//     range:
+//       req.body?.range,
+
+//     date:
+//       req.body?.date,
+
+//     date_from:
+//       req.body?.date_from,
+
+//     date_to:
+//       req.body?.date_to,
+//   };
+
+//   const orderIds =
+//     await resolveOrderIds(input);
+
+//   if (!orderIds.length) {
+//     throw httpError(
+//       400,
+//       'No orders found to email'
+//     );
+//   }
+
+//   let sent = 0;
+
+//   for (const orderId of orderIds) {
+//     try {
+//       await sendOrderInvoiceToCustomer(
+//         orderId
+//       );
+
+//       sent += 1;
+//     } catch (error) {
+//       console.error(
+//         `Invoice email failed for order #${orderId}:`,
+//         error.message
+//       );
+//     }
+//   }
+
+//   if (!sent) {
+//     throw httpError(
+//       400,
+//       'No customer emails found for selected orders'
+//     );
+//   }
+
+//   return {
+//     sent,
+//     orderIds,
+//   };
+// }
+// // async function emailCustomerInvoices(req) {
+// //   const input = {
+// //     order_ids: req.body?.order_ids,
+// //     customer_ids: req.body?.customer_ids,
+// //     range: req.body?.range,
+// //     date: req.body?.date,
+// //     date_from: req.body?.date_from,
+// //     date_to: req.body?.date_to,
+// //   };
+// //   const orderIds = await resolveOrderIds(input);
+// //   if (!orderIds.length) throw httpError(400, 'No orders found to email');
+
+// //   let sent = 0;
+// //   for (const orderId of orderIds) {
+// //     const { pdf, filename, order } = await buildPdfForOrder(orderId, 'invoice');
+// //     const to = order.billing?.email || order.billing_email;
+// //     if (!to) continue;
+// //     await sendMail({
+// //       to,
+// //       subject: `Your BrassLeaf Invoice #${order.invoice_number}`,
+// //       text: `Dear customer,\n\nPlease find attached your invoice for order #${order.id}.\n\nThank you,\nBrassLeaf`,
+// //       attachments: [{ filename, content: pdf, contentType: 'application/pdf' }],
+// //     });
+// //     sent += 1;
+// //   }
+// //   if (!sent) throw httpError(400, 'No customer emails found for selected orders');
+// //   return { sent, orderIds };
+// // }
+
+// // async function emailDailyAdmin(type, preset = 'yesterday') {
+// //   const orderIds = await resolveOrderIds({ range: preset });
+// //   if (!orderIds.length) return { sent: false, reason: 'no_orders', count: 0 };
+
+// //   const attachments = [];
+// //   for (const orderId of orderIds) {
+// //     const { pdf, filename } = await buildPdfForOrder(orderId, type);
+// //     attachments.push({ filename, content: pdf, contentType: 'application/pdf' });
+// //   }
+
+// //   const adminEmail = env.adminEmail;
+// //   if (!adminEmail) throw httpError(500, 'ADMIN_EMAIL is not configured in backend .env');
+
+// //   const range = resolveDateRange({ range: preset });
+// //   const dayLabel = range.label || preset;
+// //   const isInvoice = type === 'invoice';
+// //   await sendMail({
+// //     to: adminEmail,
+// //     subject: `BrassLeaf Daily ${isInvoice ? 'Invoices' : 'Packing Slips'} — ${dayLabel}`,
+// //     text: `Attached are ${attachments.length} ${isInvoice ? 'invoice' : 'packing slip'} PDF(s) for ${dayLabel}.`,
+// //     attachments,
+// //   });
+
+// //   return { sent: true, count: attachments.length, type, dayLabel };
+// // }
+
+// async function sendDailyAdminReports(
+//   scheduleInput = null
+// ) {
+//   const reportScheduleService =
+//     require('./reportScheduleService');
+
+//   const schedule =
+//     scheduleInput ||
+//     (await reportScheduleService.getSchedule());
+
+//   const rangeKey =
+//     schedule.report_day === 'today'
+//       ? 'today'
+//       : 'yesterday';
+
+//   // Get all orders for selected day
+//   const orderIds =
+//     await resolveOrderIds({
+//       range: rangeKey,
+//     });
+
+//   if (!orderIds.length) {
+//     return {
+//       sent: false,
+//       reason: 'no_orders',
+//       count: 0,
+//       range: rangeKey,
+//     };
+//   }
+
+//   const adminEmail =
+//     schedule.admin_email ||
+//     env.adminEmail;
+
+//   if (!adminEmail) {
+//     throw httpError(
+//       500,
+//       'Admin email is not configured for daily reports'
+//     );
+//   }
+
+//   const range =
+//     resolveDateRange({
+//       range: rangeKey,
+//     });
+
+//   const dayLabel =
+//     range.label ||
+//     (
+//       rangeKey === 'today'
+//         ? 'Today'
+//         : 'Yesterday'
+//     );
+
+//   const totals =
+//     await totalsForOrderIds(orderIds);
+
+//   /*
+//    * =====================================
+//    * PDF 1 - ALL INVOICES
+//    * =====================================
+//    */
+
+//   const invoicesHtml =
+//     await buildCombinedDocumentHtml(
+//       orderIds,
+//       'invoice'
+//     );
+
+//   const invoicesPdf =
+//     toBuffer(
+//       await htmlToPdfBuffer(
+//         invoicesHtml
+//       )
+//     );
+
+//   /*
+//    * =====================================
+//    * PDF 2 - ALL PACKING SLIPS
+//    * =====================================
+//    */
+
+//   const packingSlipsHtml =
+//     await buildCombinedDocumentHtml(
+//       orderIds,
+//       'packing-slip'
+//     );
+
+//   const packingSlipsPdf =
+//     toBuffer(
+//       await htmlToPdfBuffer(
+//         packingSlipsHtml
+//       )
+//     );
+
+//   /*
+//    * Safe filename
+//    */
+//   const safeLabel =
+//     String(dayLabel)
+//       .replace(/[^\w\s-]/g, '')
+//       .trim()
+//       .replace(/\s+/g, '-')
+//       .toLowerCase();
+
+//   const invoiceFilename =
+//     `brassleaf-invoices-${
+//       safeLabel || rangeKey
+//     }.pdf`;
+
+//   const packingSlipFilename =
+//     `brassleaf-packing-slips-${
+//       safeLabel || rangeKey
+//     }.pdf`;
+
+//   /*
+//    * ONE EMAIL
+//    * TWO PDF ATTACHMENTS
+//    */
+//   await sendMail({
+//     to: adminEmail,
+
+//     subject:
+//       `BrassLeaf - Daily Reports - ${dayLabel}`,
+
+//     html: `
+//       <div
+//         style="
+//           font-family:Arial,sans-serif;
+//           color:#243346;
+//           line-height:1.6;
+//         "
+//       >
+//         <p>Hello Admin,</p>
+
+//         <p>
+//           Please find attached the BrassLeaf
+//           daily reports for
+//           <strong>${esc(dayLabel)}</strong>.
+//         </p>
+
+//         <p>
+//           <strong>Total Orders:</strong>
+//           ${totals.order_count}
+//           <br/>
+
+//           <strong>Total Sales:</strong>
+//           ${formatMoney(
+//             totals.total_sales
+//           )}
+//         </p>
+
+//         <p>
+//           This email contains two PDF
+//           attachments:
+//         </p>
+
+//         <p>
+//           1. All invoices for the selected day
+//           <br/>
+//           2. All packing slips for the selected day
+//         </p>
+
+//         <p>
+//           Regards,
+//           <br/>
+//           BrassLeaf Admin
+//         </p>
+//       </div>
+//     `,
+
+//     text:
+//       `Hello Admin,\n\n` +
+
+//       `Please find attached the BrassLeaf daily reports for ${dayLabel}.\n\n` +
+
+//       `Total Orders: ${totals.order_count}\n` +
+
+//       `Total Sales: ${formatMoney(
+//         totals.total_sales
+//       )}\n\n` +
+
+//       `Attachments:\n` +
+//       `1. All invoices\n` +
+//       `2. All packing slips\n\n` +
+
+//       `Regards,\nBrassLeaf Admin`,
+
+//     attachments: [
+//       {
+//         filename:
+//           invoiceFilename,
+
+//         content:
+//           invoicesPdf,
+
+//         contentType:
+//           'application/pdf',
+//       },
+
+//       {
+//         filename:
+//           packingSlipFilename,
+
+//         content:
+//           packingSlipsPdf,
+
+//         contentType:
+//           'application/pdf',
+//       },
+//     ],
+//   });
+
+//   return {
+//     sent: true,
+
+//     count:
+//       orderIds.length,
+
+//     total_sales:
+//       totals.total_sales,
+
+//     dayLabel,
+
+//     range:
+//       rangeKey,
+
+//     orderIds,
+
+//     attachments: [
+//       invoiceFilename,
+//       packingSlipFilename,
+//     ],
+//   };
+// }
+// // async function sendDailyAdminReports(scheduleInput = null) {
+// //   const reportScheduleService = require('./reportScheduleService');
+// //   const schedule = scheduleInput || (await reportScheduleService.getSchedule());
+
+// //   const rangeKey = schedule.report_day === 'today' ? 'today' : 'yesterday';
+// //   const orderIds = await resolveOrderIds({ range: rangeKey });
+
+// //   if (!orderIds.length) {
+// //     return { sent: false, reason: 'no_orders', count: 0, range: rangeKey };
+// //   }
+
+// //   const adminEmail = schedule.admin_email || env.adminEmail;
+// //   if (!adminEmail) {
+// //     throw httpError(500, 'Admin email is not configured for daily reports');
+// //   }
+
+// //   const range = resolveDateRange({ range: rangeKey });
+// //   const dayLabel = range.label || (rangeKey === 'today' ? 'Today' : 'Yesterday');
+// //   const totals = await totalsForOrderIds(orderIds);
+// //   const html = await buildCombinedDailyHtml(orderIds);
+// //   const pdf = toBuffer(await htmlToPdfBuffer(html));
+// //   const safeLabel = dayLabel.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').toLowerCase();
+// //   const filename = `brassleaf-daily-orders-${safeLabel || rangeKey}.pdf`;
+
+// //   await sendMail({
+// //     to: adminEmail,
+// //     subject: `BrassLeaf - Daily Orders - ${dayLabel}`,
+// //     html: `
+// //       <div style="font-family:Arial,sans-serif;color:#243346;line-height:1.6;">
+// //         <p>Hello Admin,</p>
+// //         <p>Please find attached the BrassLeaf daily orders document for <strong>${esc(dayLabel)}</strong>.</p>
+// //         <p><strong>Total Orders:</strong> ${totals.order_count}<br/>
+// //         <strong>Total Sales:</strong> ${formatMoney(totals.total_sales)}</p>
+// //         <p>The attached PDF contains the invoice and packing slip for each order.</p>
+// //         <p>Regards,<br/>BrassLeaf Admin</p>
+// //       </div>
+// //     `,
+// //     text:
+// //       `Hello Admin,\n\nPlease find attached the BrassLeaf daily orders document for ${dayLabel}.\n\n` +
+// //       `Total Orders: ${totals.order_count}\nTotal Sales: ${formatMoney(totals.total_sales)}\n\n` +
+// //       `The attached PDF contains the invoice and packing slip for each order.\n\nRegards,\nBrassLeaf Admin`,
+// //     attachments: [{ filename, content: pdf, contentType: 'application/pdf' }],
+// //   });
+
+// //   return {
+// //     sent: true,
+// //     count: orderIds.length,
+// //     total_sales: totals.total_sales,
+// //     dayLabel,
+// //     range: rangeKey,
+// //     orderIds,
+// //     filename,
+// //   };
+// // }
 
 // module.exports = {
 //   list,
@@ -2433,8 +4429,13 @@ module.exports = {
 //   buildDownload,
 //   buildDocumentHtml,
 //   buildPdfForOrder,
+
+//    sendOrderInvoiceToCustomer,
 //   emailCustomerInvoices,
-//   emailDailyAdmin,
+//   // emailDailyAdmin,
 //   sendDailyAdminReports,
 //   resolveOrderIds,
 // };
+
+
+

@@ -66,27 +66,117 @@ async function initiatePayment(req, res) {
 }
 
 async function paytmCallback(req, res) {
+  let callbackOrderId = "";
+
   try {
-    const result = await paytmService.handleCallback(req.body || {});
+    const body = req.body || {};
+
+    const gateway =
+      body?.body &&
+      typeof body.body === "object"
+        ? body.body
+        : body;
+
+    const paytmOrderId = String(
+      gateway.ORDERID ||
+      gateway.orderId ||
+      ""
+    );
+
+    const match =
+      paytmOrderId.match(/^(\d+)_/);
+
+    callbackOrderId =
+      match?.[1] || "";
+
+    console.log(
+      "[Paytm callback received]",
+      {
+        paytmOrderId,
+        callbackOrderId,
+        status:
+          gateway.STATUS ||
+          gateway.status ||
+          null,
+      }
+    );
+
+    const result =
+      await paytmService.handleCallback(
+        body
+      );
+
+    console.log(
+      "[Paytm callback result]",
+      result
+    );
 
     if (result.success) {
       return res.redirect(
         customerRedirect(
-          `/order-success?orderId=${encodeURIComponent(result.orderId)}`
+          `/order-success?orderId=${encodeURIComponent(
+            result.orderId
+          )}`
         )
       );
     }
 
     return res.redirect(
       customerRedirect(
-        `/pay-for-order/${encodeURIComponent(result.orderId)}?payment=failed`
+        `/pay-for-order/${encodeURIComponent(
+          result.orderId
+        )}?payment=failed`
       )
     );
   } catch (error) {
-    console.error('[Paytm callback]', error);
-    return res.redirect(customerRedirect('/profile?tab=orders'));
+    console.error(
+      "[Paytm callback error]",
+      error
+    );
+
+    /*
+     * Don't hide payment error by
+     * sending customer directly to orders.
+     */
+    if (callbackOrderId) {
+      return res.redirect(
+        customerRedirect(
+          `/pay-for-order/${encodeURIComponent(
+            callbackOrderId
+          )}?payment=failed`
+        )
+      );
+    }
+
+    return res.redirect(
+      customerRedirect(
+        "/profile?tab=orders&payment=failed"
+      )
+    );
   }
 }
+// async function paytmCallback(req, res) {
+//   try {
+//     const result = await paytmService.handleCallback(req.body || {});
+
+//     if (result.success) {
+//       return res.redirect(
+//         customerRedirect(
+//           `/order-success?orderId=${encodeURIComponent(result.orderId)}`
+//         )
+//       );
+//     }
+
+//     return res.redirect(
+//       customerRedirect(
+//         `/pay-for-order/${encodeURIComponent(result.orderId)}?payment=failed`
+//       )
+//     );
+//   } catch (error) {
+//     console.error('[Paytm callback]', error);
+//     return res.redirect(customerRedirect('/profile?tab=orders'));
+//   }
+// }
 
 async function paytmConfig(req, res) {
   const config = await paytmService.getPublicConfig();
