@@ -5,6 +5,8 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 const ctrl = require('../controllers/gstController');
 
 router.use(authenticate, requireAdmin);
+router.get('/export', asyncHandler(ctrl.getGstExport));
 router.get('/', asyncHandler(ctrl.getGstReport));
 
 module.exports = router;
+
